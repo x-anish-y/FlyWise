@@ -1,0 +1,124 @@
+{
+  "domestic": [
+    {
+      "route_id": "DEL-BOM",
+      "origin": "DEL",
+      "destination": "BOM",
+      "currency": "INR",
+      "windows": [1, 7, 15, 21, 30, 45],
+      "ota_scrape": true
+    },
+    {
+      "route_id": "DEL-BLR",
+      "origin": "DEL",
+      "destination": "BLR",
+      "currency": "INR",
+      "windows": [1, 7, 15, 21, 30, 45],
+      "ota_scrape": true
+    },
+    {
+      "route_id": "BOM-BLR",
+      "origin": "BOM",
+      "destination": "BLR",
+      "currency": "INR",
+      "windows": [1, 7, 15, 21, 30, 45]
+    },
+    {
+      "route_id": "DEL-CCU",
+      "origin": "DEL",
+      "destination": "CCU",
+      "currency": "INR",
+      "windows": [1, 7, 15, 21, 30, 45]
+    },
+    {
+      "route_id": "BLR-HYD",
+      "origin": "BLR",
+      "destination": "HYD",
+      "currency": "INR",
+      "windows": [1, 7, 15, 21, 30, 45]
+    },
+    {
+      "route_id": "MAA-DEL",
+      "origin": "MAA",
+      "destination": "DEL",
+      "currency": "INR",
+      "windows": [1, 7, 15, 21, 30, 45]
+    },
+    {
+      "route_id": "BOM-HYD",
+      "origin": "BOM",
+      "destination": "HYD",
+      "currency": "INR",
+      "windows": [1, 7, 15, 21, 30, 45]
+    },
+    {
+      "route_id": "DEL-AMD",
+      "origin": "DEL",
+      "destination": "AMD",
+      "currency": "INR",
+      "windows": [1, 7, 15, 21, 30, 45]
+    }
+  ],
+  "international": [
+    {
+      "route_id": "DEL-DXB",
+      "origin": "DEL",
+      "destination": "DXB",
+      "currency": "AED",
+      "windows": [1, 30, 60]
+    },
+    {
+      "route_id": "BOM-DXB",
+      "origin": "BOM",
+      "destination": "DXB",
+      "currency": "AED",
+      "windows": [1, 30, 60]
+    },
+    {
+      "route_id": "DEL-SIN",
+      "origin": "DEL",
+      "destination": "SIN",
+      "currency": "SGD",
+      "windows": [1, 30, 60]
+    },
+    {
+      "route_id": "BOM-SIN",
+      "origin": "BOM",
+      "destination": "SIN",
+      "currency": "SGD",
+      "windows": [1, 30, 60]
+    }
+  ],
+  "seasonal": [
+    {
+      "route_id": "DEL-GOI",
+      "origin": "DEL",
+      "destination": "GOI",
+      "currency": "INR",
+      "season_window": "Oct-Mar",
+      "windows": [1, 7, 15, 21, 30, 45]
+    },
+    {
+      "route_id": "DEL-SXR",
+      "origin": "DEL",
+      "destination": "SXR",
+      "currency": "INR",
+      "season_window": "Apr-Oct",
+      "windows": [1, 7, 15, 21, 30, 45]
+    }
+  ],
+  "ota_routes": [
+    {
+      "route_id": "DEL-BOM",
+      "origin": "DEL",
+      "destination": "BOM",
+      "window": 21
+    },
+    {
+      "route_id": "DEL-BLR",
+      "origin": "DEL",
+      "destination": "BLR",
+      "window": 21
+    }
+  ]
+}

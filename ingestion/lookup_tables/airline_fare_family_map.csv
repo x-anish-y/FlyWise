@@ -1,0 +1,5 @@
+airline,fare_family_raw,fare_family_tier,baggage_bucket
+IndiGo,Saver,base,0kg
+IndiGo,Flexi,flex,15kg
+Air India,Comfort,standard,15kg
+SpiceJet,SpiceSaver,base,0kg

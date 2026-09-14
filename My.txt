@@ -1,0 +1,23 @@
+Neon Prompt to setup:
+
+Set up this Neon project in the current working directory.
+
+1. `npm i -g neon@latest && neon login`
+2. `neon skills -y`
+3. `neon mcp -y`
+4. `neon link --project-id green-paper-55179178 --branch production -y`
+5. `neon config init`
+6. Update `neon.ts`:
+
+```ts
+import { defineConfig } from "@neon/config/v1";
+
+export default defineConfig({});
+```
+
+7. `neon deploy`
+
+Neon connecting String: postgresql://flywise_owner:npg_pKxA3vD2JbCL@ep-calm-lake-azw4y67q-pooler.c-3.ap-southeast-1.aws.neon.tech/flywise?sslmode=require&channel_binding=require
+
+Bright Data API key : bf531ebc-496f-4e19-8b2a-d34eb3cab794
+Scappa API key: eyJpdiI6IitlLzdGdzc5VjVBYk9QSy81U3N5SVE9PSIsInZhbHVlIjoiZU9mL2E3azdXOHVKQU1JVUNuZEpmK0FmdlhWaXVrNWliMUtBRDkwNmlZcUNSRmZHN2o2R3haNW16djdqTVFYM1d4MjMxVHU4dEFpcGpwQ1dpcTlJZUE9PSIsIm1hYyI6IjI2N2I0ZGNhNDU3MzBiZGM1NjlkYmRlMmY3ZTkwZjA5Njc4MWI1NGJiN2ZkZDJmZTIxMmRkYTlkYmY3MGYwYWMiLCJ0YWciOiIifQ==
