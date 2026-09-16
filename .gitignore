@@ -35,6 +35,7 @@ Thumbs.db
 
 # --- Misc ---
 *.log
+processing/fx_cache/
 
 # --- Project Notes & Internal Documents ---
 PS56 Plan.pdf
