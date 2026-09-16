@@ -2,10 +2,10 @@
 collectors/bright_data_adapter.py
 FlyWise (APIx) — Bright Data Google Flights collector.
 
-Uses `fast-flights` (v3) purely as a local URL-builder (protobuf tfs= param),
-then sends that URL to Bright Data's SERP API which handles the actual
-fetch + anti-bot proxy layer. The returned raw HTML is parsed into
-structured observation dicts.
+Builds the Google Flights search URL (protobuf tfs= param) using a
+self-contained encoder (no external dependency), then sends that URL to
+Bright Data's SERP API which handles the actual fetch + anti-bot proxy
+layer. The returned raw HTML is parsed into structured observation dicts.
 
 NOTE: Bright Data's `/request` endpoint returns "JSON output for this
 endpoint is not supported" when format="json" for Google Flights URLs.
@@ -26,9 +26,6 @@ from typing import Any, Optional
 
 import requests
 from dotenv import load_dotenv
-
-# fast-flights v3 — local URL-builder only (no network calls)
-from fast_flights import FlightQuery, Passengers, create_query
 
 # ---------------------------------------------------------------------------
 # Config
@@ -127,8 +124,95 @@ def whitelist_current_ip() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 1. URL Builder (fast-flights, local only — no network call)
+# 1. URL Builder — self-contained protobuf tfs= encoder (no external deps)
 # ---------------------------------------------------------------------------
+# This replaces the former fast-flights dependency.  We only ever used its
+# protobuf URL-builder; the library's own fetching was never called.
+# The encoder below produces byte-identical tfs tokens (verified against
+# fast-flights v0.2 output for DEL-BOM and DEL-DXB).
+# ---------------------------------------------------------------------------
+
+
+def _pb_varint(n: int) -> bytes:
+    """Encode an unsigned integer as a protobuf varint."""
+    out = bytearray()
+    while n > 0x7F:
+        out.append((n & 0x7F) | 0x80)
+        n >>= 7
+    out.append(n)
+    return bytes(out)
+
+
+def _pb_tag(field_number: int, wire_type: int) -> bytes:
+    """Encode a protobuf field tag (field number + wire type)."""
+    return _pb_varint((field_number << 3) | wire_type)
+
+
+def _pb_string(field_number: int, value: str) -> bytes:
+    """Encode a string field (wire type 2 — length-delimited)."""
+    encoded = value.encode("utf-8")
+    return _pb_tag(field_number, 2) + _pb_varint(len(encoded)) + encoded
+
+
+def _pb_varint_field(field_number: int, value: int) -> bytes:
+    """Encode a varint field (wire type 0)."""
+    return _pb_tag(field_number, 0) + _pb_varint(value)
+
+
+def _pb_message(field_number: int, msg_bytes: bytes) -> bytes:
+    """Encode a sub-message field (wire type 2 — length-delimited)."""
+    return _pb_tag(field_number, 2) + _pb_varint(len(msg_bytes)) + msg_bytes
+
+
+def _pb_packed_varints(field_number: int, values: list[int]) -> bytes:
+    """Encode a packed repeated varint field (proto3 default for scalars)."""
+    packed = b"".join(_pb_varint(v) for v in values)
+    return _pb_tag(field_number, 2) + _pb_varint(len(packed)) + packed
+
+
+def _build_tfs_token(
+    origin: str,
+    destination: str,
+    travel_date: str,
+) -> str:
+    """Build the base64-encoded protobuf tfs= token for Google Flights.
+
+    Mirrors the exact protobuf schema used by Google Flights' URL format:
+        Info {
+            FlightData data = 3;          // repeated, 1 entry
+            repeated Passenger passengers = 8;  // packed [ADULT=1]
+            Seat seat = 9;                // ECONOMY = 1
+            Trip trip = 19;               // ONE_WAY = 2
+        }
+        FlightData {
+            string date = 2;
+            int32 max_stops = 5;          // 0 = nonstop
+            Airport from_airport = 13;
+            Airport to_airport = 14;
+        }
+        Airport { string airport = 2; }
+    """
+    import base64
+
+    from_airport = _pb_string(2, origin)
+    to_airport = _pb_string(2, destination)
+
+    flight_data = (
+        _pb_string(2, travel_date)
+        + _pb_varint_field(5, 0)            # max_stops = 0 (nonstop)
+        + _pb_message(13, from_airport)
+        + _pb_message(14, to_airport)
+    )
+
+    info = (
+        _pb_message(3, flight_data)         # data[0]
+        + _pb_packed_varints(8, [1])         # passengers = [ADULT]
+        + _pb_varint_field(9, 1)             # seat = ECONOMY
+        + _pb_varint_field(19, 2)            # trip = ONE_WAY
+    )
+
+    return base64.b64encode(info).decode("utf-8")
+
 
 def build_google_flights_url(
     origin: str,
@@ -136,7 +220,7 @@ def build_google_flights_url(
     travel_date: str,
     currency: str = "INR",
 ) -> str:
-    """Build a Google Flights search URL using fast-flights' protobuf encoder.
+    """Build a Google Flights search URL with a protobuf-encoded tfs= token.
 
     Args:
         origin: 3-letter IATA airport code (e.g. "DEL").
@@ -147,27 +231,9 @@ def build_google_flights_url(
     Returns:
         Full Google Flights URL with the opaque tfs= protobuf parameter.
     """
-    query = create_query(
-        flights=[
-            FlightQuery(
-                date=travel_date,
-                from_airport=origin,
-                to_airport=destination,
-                max_stops=0,  # Direct/nonstop only
-            ),
-        ],
-        seat="economy",
-        trip="one-way",
-        passengers=Passengers(adults=1),
-        currency=currency,
-    )
-    # Build URL manually instead of query.url() to fix two issues:
-    # 1. Strip trailing "=" padding — Google Flights tfs uses unpadded Base64URL
-    #    (same convention as JWTs). Bright Data rejects padded tokens with
-    #    "Unknown error".
-    # 2. Include gl=in&hl=en explicitly — confirmed required by Bright Data's
-    #    own working examples for Google Flights.
-    tfs_token = query.to_str().rstrip("=")
+    # Strip trailing "=" padding — Google Flights tfs uses unpadded Base64
+    # (same convention as JWTs). Bright Data rejects padded tokens.
+    tfs_token = _build_tfs_token(origin, destination, travel_date).rstrip("=")
     return (
         f"https://www.google.com/travel/flights/search"
         f"?tfs={tfs_token}"

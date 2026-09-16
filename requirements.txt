@@ -8,9 +8,6 @@ requests>=2.31,<3
 # Environment variable management
 python-dotenv>=1.0,<2
 
-# Google Flights structured query builder (Bright Data adapter)
-fast-flights>=0.2,<1
-
 # HTML parsing (OTA scraper fallback)
 beautifulsoup4>=4.12,<5
 
