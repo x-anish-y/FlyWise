@@ -1,0 +1,21 @@
+# ============================================================
+# FlyWise (APIx) — Python dependencies
+# ============================================================
+
+# HTTP requests (Bright Data & Scrappa adapters)
+requests>=2.31,<3
+
+# Environment variable management
+python-dotenv>=1.0,<2
+
+# Google Flights structured query builder (Bright Data adapter)
+fast-flights>=0.2,<1
+
+# HTML parsing (OTA scraper fallback)
+beautifulsoup4>=4.12,<5
+
+# Browser automation (OTA scraper)
+playwright>=1.40,<2
+
+# PostgreSQL driver (ingestion pipeline → Neon)
+psycopg2-binary>=2.9,<3
