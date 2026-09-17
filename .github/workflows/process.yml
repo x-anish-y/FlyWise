@@ -1,0 +1,36 @@
+# ============================================================
+# FlyWise Processing — GitHub Actions Workflow
+# Runs ~15 min after the collection workflow (quality + FX lock,
+# imputation, index computation). Database-only — no API keys.
+# ============================================================
+
+name: FlyWise Processing
+
+on:
+  schedule:
+    # 15 minutes past every 4th hour (after collection at :00)
+    - cron: '15 */4 * * *'
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run processing pipeline (quality → imputation → index)
+        run: python processing/render_cron_entrypoint.py
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
