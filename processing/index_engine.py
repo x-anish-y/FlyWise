@@ -94,6 +94,36 @@ def _is_in_season(season_window: Optional[str], check_date: date) -> bool:
 DOMESTIC_WEIGHT = 0.70       # ~8-10 domestic routes
 INTERNATIONAL_WEIGHT = 0.30  # ~4 international routes
 
+# ---------------------------------------------------------------------------
+# Window category mapping for national_index
+# ---------------------------------------------------------------------------
+# national_index.window_category must be one of:
+#   'cpi_compatible' — advance_days that mirror typical consumer advance-purchase
+#                      behaviour, suitable for official CPI-style reporting.
+#                      T+21 for domestic routes, T+60 for international routes.
+#   'analytical'     — every other advance_days window (T+1, T+7, T+15, T+30,
+#                      T+45, T+1, T+30 for intl).  Useful for market analysis
+#                      but not part of the headline index.
+#
+# route_index retains full advance_days granularity; this mapping is applied
+# ONLY when collapsing into national_index.
+
+CPI_COMPATIBLE_WINDOWS: dict[str, set[int]] = {
+    "domestic":      {21},   # T+21 is CPI-compatible for domestic
+    "international": {60},   # T+60 is CPI-compatible for international
+}
+
+
+def _classify_window(advance_days: int, bucket: str) -> str:
+    """Map an advance_days value to 'cpi_compatible' or 'analytical'.
+
+    Args:
+        advance_days: The lead-time window (e.g. 1, 7, 21, 60).
+        bucket: 'domestic' or 'international'.
+    """
+    cpi_set = CPI_COMPATIBLE_WINDOWS.get(bucket, set())
+    return "cpi_compatible" if advance_days in cpi_set else "analytical"
+
 # Coverage thresholds
 COVERAGE_GOOD = 0.80   # ≥80% non-imputed = acceptable
 COVERAGE_WARN = 0.50   # <50% = seriously degraded
@@ -426,22 +456,77 @@ def _fetch_active_routes(conn, target_date: date) -> list[dict]:
     return active
 
 
-def _compute_weighted_index(
+def _collapse_route_indices_by_window_category(
     route_indices: list[dict],
+    active_routes: list[dict],
+) -> dict[str, list[dict]]:
+    """Collapse route-level Jevons indices into national window categories.
+
+    Each route_index entry has a raw advance_days (1, 7, 15, 21, 30, 45, 60).
+    For national_index we need exactly two window_categories:
+      'cpi_compatible' — T+21 domestic, T+60 international.
+      'analytical'     — everything else.
+
+    Within each (route, national_window_category), we AVERAGE the route's
+    Jevons indices across the advance_days that map to that category.
+
+    Rationale for averaging: within a window category, each advance_days
+    represents a different lead-time observation of the same underlying
+    market.  A simple arithmetic mean treats them as equally informative
+    sub-samples of that category's price level, which is appropriate
+    because our route_weights already capture the route's importance.
+    The Young-type weighting then aggregates across routes.
+
+    Returns:
+        { 'cpi_compatible': [ {route_id, avg_index} ... ],
+          'analytical':     [ {route_id, avg_index} ... ] }
+    """
+    # Build route → bucket lookup
+    route_bucket: dict[str, str] = {
+        r["route_id"]: r["domestic_international"]
+        for r in active_routes
+    }
+
+    # Group: (route_id, nat_wc) → list of price_relative values
+    grouped: dict[tuple[str, str], list[float]] = {}
+
+    for idx in route_indices:
+        rid = idx["route_id"]
+        adv = idx["advance_days"]
+        bucket = route_bucket.get(rid, "domestic")
+        nat_wc = _classify_window(adv, bucket)
+
+        grouped.setdefault((rid, nat_wc), []).append(idx["price_relative"])
+
+    # Collapse to per-route averages within each national window category
+    result: dict[str, list[dict]] = {"cpi_compatible": [], "analytical": []}
+
+    for (rid, nat_wc), values in grouped.items():
+        avg_index = sum(values) / len(values)
+        result.setdefault(nat_wc, []).append({
+            "route_id": rid,
+            "avg_index": round(avg_index, 4),
+            "n_windows": len(values),
+        })
+
+    return result
+
+
+def _compute_weighted_index(
+    collapsed_entries: list[dict],
     routes_in_bucket: list[dict],
 ) -> Optional[float]:
-    """Compute Young-type weighted average of route-level Jevons indices.
+    """Compute Young-type weighted average of collapsed route-level indices.
 
     Young index = Σ(w_i × I_i) / Σ(w_i)
 
-    where w_i = route_weight, I_i = route's Jevons index.
-    Only routes that have at least one index value are included.
+    where w_i = route_weight, I_i = route's average Jevons index
+    (already collapsed across advance_days within this window category).
     """
-    # Build lookup: route_id → list of price_relative values
-    route_index_map: dict[str, list[float]] = {}
-    for idx in route_indices:
-        rid = idx["route_id"]
-        route_index_map.setdefault(rid, []).append(idx["price_relative"])
+    # Build lookup: route_id → avg_index
+    route_avg_map: dict[str, float] = {
+        e["route_id"]: e["avg_index"] for e in collapsed_entries
+    }
 
     weighted_sum = 0.0
     weight_sum = 0.0
@@ -450,13 +535,11 @@ def _compute_weighted_index(
         rid = route["route_id"]
         weight = float(route.get("route_weight") or 1.0)
 
-        values = route_index_map.get(rid, [])
-        if not values:
+        avg_idx = route_avg_map.get(rid)
+        if avg_idx is None:
             continue
 
-        # Average across all windows for this route on this day
-        route_avg = sum(values) / len(values)
-        weighted_sum += weight * route_avg
+        weighted_sum += weight * avg_idx
         weight_sum += weight
 
     if weight_sum <= 0:
@@ -562,18 +645,32 @@ def _compute_national_indices(
 ) -> list[dict]:
     """Compute DAPIx, IAPIx, and Overall APIx for each window_category.
 
+    national_index.window_category is always one of:
+      'cpi_compatible' — T+21 domestic / T+60 international.
+      'analytical'     — all other advance_days windows.
+
+    This produces exactly 2 rows per date in national_index.
+
+    Aggregation method:
+    1. For each (route, window_category), AVERAGE the route's Jevons indices
+       across the advance_days that fall under that category.
+    2. Apply Young-type route_weight-weighted sum across routes for DAPIx
+       (domestic only) and IAPIx (international only) SEPARATELY.
+    3. Combine into Overall APIx with prototype weights.
+
     Returns list of dicts for national_index insertion.
     """
     # Split routes by bucket
     domestic_routes = [r for r in active_routes if r["domestic_international"] == "domestic"]
     international_routes = [r for r in active_routes if r["domestic_international"] == "international"]
 
-    # Get distinct window_categories from today's route indices
-    window_categories = sorted({i["window_category"] for i in route_indices})
-
-    if not window_categories:
-        logger.warning("No window categories found in route indices for %s.", target_date)
+    if not route_indices:
+        logger.warning("No route indices to aggregate for %s.", target_date)
         return []
+
+    # Step 1: Collapse route_index entries into national window categories
+    # (average per-route across the advance_days that map to each category)
+    collapsed = _collapse_route_indices_by_window_category(route_indices, active_routes)
 
     coverage, confidence = _compute_coverage_and_confidence(
         conn, target_date, active_routes, route_indices,
@@ -582,19 +679,28 @@ def _compute_national_indices(
 
     results: list[dict] = []
 
-    for wc in window_categories:
-        # Filter route_indices to this window_category
-        wc_indices = [i for i in route_indices if i["window_category"] == wc]
+    for nat_wc in ["cpi_compatible", "analytical"]:
+        entries = collapsed.get(nat_wc, [])
+        if not entries:
+            logger.info(
+                "No route indices for %s '%s' on %s — skipping.",
+                "national", nat_wc, target_date,
+            )
+            continue
 
-        # DAPIx: Young-type weighted sum of domestic routes only
-        dapix = _compute_weighted_index(wc_indices, domestic_routes)
+        # Step 2: DAPIx — Young-type weighted sum of domestic routes only
+        domestic_entries = [e for e in entries if e["route_id"] in
+                           {r["route_id"] for r in domestic_routes}]
+        dapix = _compute_weighted_index(domestic_entries, domestic_routes)
 
-        # IAPIx: Young-type weighted sum of international routes only
+        # IAPIx — Young-type weighted sum of international routes only
         # IMPORTANT: DAPIx and IAPIx are SEPARATE calculations.
         # Domestic and international routes are NEVER mixed in the same sum.
-        iapix = _compute_weighted_index(wc_indices, international_routes)
+        intl_entries = [e for e in entries if e["route_id"] in
+                        {r["route_id"] for r in international_routes}]
+        iapix = _compute_weighted_index(intl_entries, international_routes)
 
-        # Overall APIx: combine DAPIx and IAPIx with prototype weights.
+        # Step 3: Overall APIx — combine with prototype weights.
         # NOTE(prototype): These weights (70/30 domestic/international) are
         # placeholder approximations based on relative route counts (~10
         # domestic vs 4 international in the basket). The production system
@@ -608,21 +714,22 @@ def _compute_national_indices(
         elif dapix is not None:
             overall = dapix
             logger.warning(
-                "No IAPIx for %s %s — overall APIx = DAPIx only.", target_date, wc,
+                "No IAPIx for %s '%s' — overall APIx = DAPIx only.",
+                target_date, nat_wc,
             )
         elif iapix is not None:
             overall = iapix
             logger.warning(
-                "No DAPIx for %s %s — overall APIx = IAPIx only.", target_date, wc,
+                "No DAPIx for %s '%s' — overall APIx = IAPIx only.",
+                target_date, nat_wc,
             )
         else:
-            overall = None
-            logger.warning("No index data at all for %s %s.", target_date, wc)
+            logger.warning("No index data at all for %s '%s'.", target_date, nat_wc)
             continue
 
         results.append({
             "date": target_date,
-            "window_category": wc,
+            "window_category": nat_wc,
             "domestic_apix": dapix,
             "international_apix": iapix,
             "overall_apix": overall,
@@ -631,13 +738,19 @@ def _compute_national_indices(
             "confidence_score": confidence,
         })
 
+        logger.info(
+            "  %s: DAPIx=%s (from %d domestic entries), "
+            "IAPIx=%s (from %d intl entries), Overall=%.4f",
+            nat_wc,
+            f"{dapix:.4f}" if dapix else "N/A", len(domestic_entries),
+            f"{iapix:.4f}" if iapix else "N/A", len(intl_entries),
+            overall,
+        )
+
     logger.info(
-        "Computed national indices for %s: %d window categories, "
-        "DAPIx=%s, IAPIx=%s, status=%s, coverage=%.2f, confidence=%.2f",
-        target_date, len(results),
-        results[0]["domestic_apix"] if results else "N/A",
-        results[0]["international_apix"] if results else "N/A",
-        status, coverage, confidence,
+        "Computed national indices for %s: %d categories, "
+        "status=%s, coverage=%.2f, confidence=%.2f",
+        target_date, len(results), status, coverage, confidence,
     )
 
     return results
