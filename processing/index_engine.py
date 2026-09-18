@@ -759,28 +759,39 @@ def _compute_national_indices(
 def _upsert_national_indices(conn, indices: list[dict]) -> int:
     """Write national-level indices to national_index table.
 
-    Strategy: DELETE-then-INSERT for the target date(s) so that stale rows
-    from prior runs (e.g. old T+x window_category values) are cleaned up.
-    The ON CONFLICT clause provides additional safety for concurrent writes.
+    Uses ON CONFLICT (date, window_category) DO UPDATE — Postgres only
+    touches the row matching that exact composite key, so past dates and
+    other window_categories are never affected.  This is safe by design:
+    the conflict target is the table's PRIMARY KEY.
+
+    Additionally, a one-time cleanup removes any legacy rows whose
+    window_category is not in {'cpi_compatible', 'analytical'} (left over
+    from a prior schema where raw advance_days like 'T+1' were written).
     """
     if not indices:
         return 0
 
-    # Collect all target dates in this batch
-    target_dates = list({i["date"] for i in indices})
-
-    # Delete existing rows for these dates first, so reruns overwrite cleanly
-    # and any leftover rows from a prior schema (e.g. per-advance_days rows)
-    # are removed rather than coexisting with the new cpi_compatible/analytical rows.
+    # One-time cleanup: remove legacy rows with non-standard window_category
+    # values (e.g. 'T+1', 'T+7', 'T+21') left over from before the
+    # cpi_compatible/analytical fix.  This only deletes rows whose
+    # window_category is NOT one of the two valid values — it never
+    # touches valid historical data.
     with conn.cursor() as cur:
         cur.execute(
-            "DELETE FROM national_index WHERE date = ANY(%s);",
-            (target_dates,),
+            "DELETE FROM national_index "
+            "WHERE window_category NOT IN ('cpi_compatible', 'analytical');",
         )
-        deleted = cur.rowcount
-        if deleted:
-            logger.info("Cleared %d stale national_index row(s) for %s.", deleted, target_dates)
+        legacy_deleted = cur.rowcount
+        if legacy_deleted:
+            logger.info(
+                "Cleaned up %d legacy national_index row(s) with non-standard "
+                "window_category values.",
+                legacy_deleted,
+            )
 
+    # Upsert: ON CONFLICT (date, window_category) DO UPDATE ensures that
+    # only the EXACT (date, window_category) row being written is affected.
+    # No other date or window_category is touched.
     query = """
     INSERT INTO national_index (date, window_category, domestic_apix,
                                 international_apix, overall_apix, status,
