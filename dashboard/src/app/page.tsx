@@ -37,11 +37,26 @@ import {
   RouteItem,
 } from "@/api-client";
 
+import dynamic from "next/dynamic";
 import MetricCounter from "@/components/MetricCounter";
 import ApixTrendChart from "@/components/ApixTrendChart";
 import RouteRankingChart from "@/components/RouteRankingChart";
 import HikesDropsChart from "@/components/HikesDropsChart";
 import LeadTimeCurveChart from "@/components/LeadTimeCurveChart";
+
+const RouteGlobe = dynamic(() => import("@/components/RouteGlobe"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-[520px] bg-[#151520] border border-[#232336] rounded-xl flex items-center justify-center shadow-lg">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-2 border-[#f0b429] border-t-transparent rounded-full animate-spin" />
+        <span className="text-xs font-mono text-[#94a3b8]">
+          Initializing 3D Airspace Radar Globe...
+        </span>
+      </div>
+    </div>
+  ),
+});
 
 export default function DashboardPage() {
   const [windowCategory, setWindowCategory] = useState<"cpi_compatible" | "analytical">(
@@ -339,6 +354,17 @@ export default function DashboardPage() {
               <span className="text-[#38bdf8] font-semibold">High Acuity</span>
             </div>
           </motion.div>
+        </motion.div>
+
+        {/* Centerpiece 3D Airspace Radar Globe (Requirement 5) */}
+        <motion.div
+          variants={itemVariants}
+          className="w-full"
+        >
+          <RouteGlobe
+            rankingData={rankingData}
+            windowCategory={windowCategory}
+          />
         </motion.div>
 
         {/* Analytics Grid: Row 1 */}
