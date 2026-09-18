@@ -757,9 +757,29 @@ def _compute_national_indices(
 
 
 def _upsert_national_indices(conn, indices: list[dict]) -> int:
-    """Write national-level indices to national_index table (upsert)."""
+    """Write national-level indices to national_index table.
+
+    Strategy: DELETE-then-INSERT for the target date(s) so that stale rows
+    from prior runs (e.g. old T+x window_category values) are cleaned up.
+    The ON CONFLICT clause provides additional safety for concurrent writes.
+    """
     if not indices:
         return 0
+
+    # Collect all target dates in this batch
+    target_dates = list({i["date"] for i in indices})
+
+    # Delete existing rows for these dates first, so reruns overwrite cleanly
+    # and any leftover rows from a prior schema (e.g. per-advance_days rows)
+    # are removed rather than coexisting with the new cpi_compatible/analytical rows.
+    with conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM national_index WHERE date = ANY(%s);",
+            (target_dates,),
+        )
+        deleted = cur.rowcount
+        if deleted:
+            logger.info("Cleared %d stale national_index row(s) for %s.", deleted, target_dates)
 
     query = """
     INSERT INTO national_index (date, window_category, domestic_apix,
