@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { motion, Variants } from "framer-motion";
+import Link from "next/link";
 import {
   Activity,
   Plane,
@@ -16,6 +17,7 @@ import {
   ExternalLink,
   ChevronRight,
   Database,
+  Sun,
 } from "lucide-react";
 
 import {
@@ -212,6 +214,16 @@ export default function DashboardPage() {
               <Radio className="w-3.5 h-3.5 text-[#f0b429] animate-pulse" />
               <span>CYCLE: 18:00 IST</span>
             </div>
+
+            {/* Sky Control Tower Light Mode Button */}
+            <Link
+              href="/light"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#151520] border border-[#38bdf8]/50 text-[#38bdf8] hover:bg-[#38bdf8]/10 text-xs font-mono font-semibold transition-all shadow-[0_0_10px_rgba(56,189,248,0.2)]"
+              title="Switch to Sky Control Tower (Light Mode)"
+            >
+              <Sun className="w-3.5 h-3.5 text-[#38bdf8]" />
+              <span className="hidden sm:inline">Sky Control Tower</span>
+            </Link>
 
             {/* Refresh Button */}
             <button
