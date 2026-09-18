@@ -13,9 +13,34 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
 from api.db import DatabaseSession, get_db
-from api.models.schemas import RouteHistoryResponse, RouteIndexOut
+from api.models.schemas import RouteHistoryResponse, RouteIndexOut, RouteOut
 
 router = APIRouter(prefix="/routes", tags=["Routes"])
+
+
+@router.get("", response_model=list[RouteOut])
+def list_routes(db: DatabaseSession = Depends(get_db)):
+    """Return list of all configured routes with metadata."""
+    query = """
+    SELECT route_id, origin_airport, destination_airport, domestic_international,
+           route_weight, currency, is_seasonal, season_window
+    FROM routes
+    ORDER BY route_id ASC;
+    """
+    rows = db.execute(query, fetch="all")
+    return [
+        RouteOut(
+            route_id=r[0],
+            origin_airport=r[1],
+            destination_airport=r[2],
+            domestic_international=r[3],
+            route_weight=float(r[4]) if r[4] is not None else None,
+            currency=r[5] or "INR",
+            is_seasonal=bool(r[6]),
+            season_window=r[7],
+        )
+        for r in rows
+    ]
 
 
 @router.get("/{route_id}/history", response_model=RouteHistoryResponse)

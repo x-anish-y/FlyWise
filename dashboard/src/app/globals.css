@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: #0a0a0f;
+  --color-canvas-subtle: #12121d;
+  --color-surface-lowest: #0d0d18;
+  --color-surface-low: #1b1b26;
+  --color-surface-card: #151520;
+  --color-surface-container: #1f1f2a;
+  --color-surface-high: #292935;
+  --color-surface-highest: #343440;
+  --color-border-subtle: #232336;
+  --color-border-elevated: #3b3b54;
+
+  --color-gold-primary: #ffd481;
+  --color-gold-accent: #f0b429;
+  --color-gold-dim: #fabd32;
+
+  --color-sky-blue: #38bdf8;
+  --color-aviation-blue: #2e7fcc;
+
+  --color-radar-green: #22c55e;
+  --color-radar-green-dim: #16a34a;
+  --color-surge-red: #ef4444;
+  --color-surge-red-dim: #dc2626;
+
+  --color-text-editorial: #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #475569;
+
+  --font-space: var(--font-space-grotesk), sans-serif;
+  --font-sans: var(--font-inter), sans-serif;
+  --font-mono: var(--font-jetbrains-mono), monospace;
+}
+
+:root {
+  color-scheme: dark;
+  --background: #0a0a0f;
+  --foreground: #f8fafc;
+}
+
+html, body {
+  background-color: #0a0a0f;
+  color: #f8fafc;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+/* Custom scrollbar for modern dense terminal aesthetic */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0d0d18;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #232336;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3b3b54;
+}
+
+/* Monospace numbers formatting */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Boarding pass / ticket stub border notch */
+.boarding-tag {
+  position: relative;
+  border: 1px dashed rgba(56, 189, 248, 0.4);
+  background: rgba(13, 21, 38, 0.75);
+}
+
+.boarding-tag::before,
+.boarding-tag::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 6px;
+  height: 10px;
+  background: #0a0a0f;
+  transform: translateY(-50%);
+}
+
+.boarding-tag::before {
+  left: -1px;
+  border-radius: 0 5px 5px 0;
+  border-right: 1px dashed rgba(56, 189, 248, 0.4);
+}
+
+.boarding-tag::after {
+  right: -1px;
+  border-radius: 5px 0 0 5px;
+  border-left: 1px dashed rgba(56, 189, 248, 0.4);
+}
+
+/* Radar pulse animation */
+@keyframes radar-ping {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  70% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.animate-radar-ping {
+  animation: radar-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
