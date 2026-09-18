@@ -13,7 +13,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from api.db import get_db_connection
+from api.db import DatabaseSession, get_db
 
 router = APIRouter(tags=["Coverage & Confidence"])
 
@@ -25,7 +25,7 @@ def get_coverage(
         alias="date",
         description="Date (YYYY-MM-DD). Defaults to the latest available.",
     ),
-    conn=Depends(get_db_connection),
+    db: DatabaseSession = Depends(get_db),
 ):
     """Return coverage_score per window_category for a given date."""
     if date_param:
@@ -35,7 +35,7 @@ def get_coverage(
         WHERE date = %s
         ORDER BY window_category;
         """
-        params = (date_param,)
+        params: tuple | None = (date_param,)
     else:
         # Latest date available
         query = """
@@ -44,11 +44,9 @@ def get_coverage(
         WHERE date = (SELECT MAX(date) FROM national_index)
         ORDER BY window_category;
         """
-        params = ()
+        params = None
 
-    with conn.cursor() as cur:
-        cur.execute(query, params)
-        rows = cur.fetchall()
+    rows = db.execute(query, params, fetch="all")
 
     if not rows:
         raise HTTPException(status_code=404, detail="No coverage data found.")
@@ -73,7 +71,7 @@ def get_confidence(
         alias="date",
         description="Date (YYYY-MM-DD). Defaults to the latest available.",
     ),
-    conn=Depends(get_db_connection),
+    db: DatabaseSession = Depends(get_db),
 ):
     """Return confidence_score per window_category for a given date."""
     if date_param:
@@ -83,7 +81,7 @@ def get_confidence(
         WHERE date = %s
         ORDER BY window_category;
         """
-        params = (date_param,)
+        params: tuple | None = (date_param,)
     else:
         query = """
         SELECT date, window_category, confidence_score, status
@@ -91,11 +89,9 @@ def get_confidence(
         WHERE date = (SELECT MAX(date) FROM national_index)
         ORDER BY window_category;
         """
-        params = ()
+        params = None
 
-    with conn.cursor() as cur:
-        cur.execute(query, params)
-        rows = cur.fetchall()
+    rows = db.execute(query, params, fetch="all")
 
     if not rows:
         raise HTTPException(status_code=404, detail="No confidence data found.")

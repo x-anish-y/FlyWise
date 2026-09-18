@@ -11,10 +11,22 @@ Run with:
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.db import init_pool, close_pool
 from api.routers import apix, routes, coverage, policy_export
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize resources on startup and clean up on shutdown."""
+    init_pool(minconn=1, maxconn=5)
+    yield
+    close_pool()
+
 
 app = FastAPI(
     title="FlyWise APIx",
@@ -33,6 +45,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",    # Swagger UI (default)
     redoc_url="/redoc",  # ReDoc (default)
+    lifespan=lifespan,
 )
 
 # ---------------------------------------------------------------------------

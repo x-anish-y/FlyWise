@@ -21,7 +21,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
-from api.db import get_db_connection
+from api.db import DatabaseSession, get_db
 from api.middleware.api_key_auth import require_api_key
 from api.models.schemas import PolicyApixRow, PolicyRouteRow
 
@@ -47,7 +47,7 @@ def _build_csv_stream(rows: list[dict], fieldnames: list[str]) -> io.StringIO:
 
 
 def _fetch_apix_data(
-    conn,
+    db: DatabaseSession,
     window: Optional[str],
     from_date: Optional[date],
     to_date: Optional[date],
@@ -75,14 +75,11 @@ def _fetch_apix_data(
     {where}
     ORDER BY date ASC, window_category ASC;
     """
-    with conn.cursor() as cur:
-        cur.execute(query, params)
-        cols = [d[0] for d in cur.description]
-        return [dict(zip(cols, row)) for row in cur.fetchall()]
+    return db.execute(query, params if params else None, fetch="dicts")
 
 
 def _fetch_routes_data(
-    conn,
+    db: DatabaseSession,
     window: Optional[str],
     from_date: Optional[date],
     to_date: Optional[date],
@@ -110,10 +107,7 @@ def _fetch_routes_data(
     {where}
     ORDER BY date ASC, route_id ASC, advance_days ASC;
     """
-    with conn.cursor() as cur:
-        cur.execute(query, params)
-        cols = [d[0] for d in cur.description]
-        return [dict(zip(cols, row)) for row in cur.fetchall()]
+    return db.execute(query, params if params else None, fetch="dicts")
 
 
 # ---------------------------------------------------------------------------
@@ -131,10 +125,10 @@ def export_apix_csv(
     window: Optional[str] = Query(None, pattern="^(cpi_compatible|analytical)$"),
     from_date: Optional[date] = Query(None, alias="from"),
     to_date: Optional[date] = Query(None, alias="to"),
-    conn=Depends(get_db_connection),
+    db: DatabaseSession = Depends(get_db),
 ):
     """Export the full APIx time series as a CSV file (streamed)."""
-    rows = _fetch_apix_data(conn, window, from_date, to_date)
+    rows = _fetch_apix_data(db, window, from_date, to_date)
     # Ensure date is serialized as string
     for r in rows:
         r["date"] = str(r["date"])
@@ -151,10 +145,10 @@ def export_apix_json(
     window: Optional[str] = Query(None, pattern="^(cpi_compatible|analytical)$"),
     from_date: Optional[date] = Query(None, alias="from"),
     to_date: Optional[date] = Query(None, alias="to"),
-    conn=Depends(get_db_connection),
+    db: DatabaseSession = Depends(get_db),
 ):
     """Export the full APIx time series as JSON."""
-    return _fetch_apix_data(conn, window, from_date, to_date)
+    return _fetch_apix_data(db, window, from_date, to_date)
 
 
 # ---------------------------------------------------------------------------
@@ -172,10 +166,10 @@ def export_routes_csv(
     window: Optional[str] = Query(None),
     from_date: Optional[date] = Query(None, alias="from"),
     to_date: Optional[date] = Query(None, alias="to"),
-    conn=Depends(get_db_connection),
+    db: DatabaseSession = Depends(get_db),
 ):
     """Export the full route-level index breakdown as CSV (streamed)."""
-    rows = _fetch_routes_data(conn, window, from_date, to_date)
+    rows = _fetch_routes_data(db, window, from_date, to_date)
     for r in rows:
         r["date"] = str(r["date"])
     stream = _build_csv_stream(rows, ROUTES_FIELDS)
@@ -191,7 +185,7 @@ def export_routes_json(
     window: Optional[str] = Query(None),
     from_date: Optional[date] = Query(None, alias="from"),
     to_date: Optional[date] = Query(None, alias="to"),
-    conn=Depends(get_db_connection),
+    db: DatabaseSession = Depends(get_db),
 ):
     """Export the full route-level index breakdown as JSON."""
-    return _fetch_routes_data(conn, window, from_date, to_date)
+    return _fetch_routes_data(db, window, from_date, to_date)

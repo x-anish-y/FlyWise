@@ -12,7 +12,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
-from api.db import get_db_connection
+from api.db import DatabaseSession, get_db
 from api.models.schemas import RouteHistoryResponse, RouteIndexOut
 
 router = APIRouter(prefix="/routes", tags=["Routes"])
@@ -35,14 +35,13 @@ def get_route_history(
         alias="to",
         description="End date (inclusive).",
     ),
-    conn=Depends(get_db_connection),
+    db: DatabaseSession = Depends(get_db),
 ):
     """Return the price-relative history for a specific route."""
     # Validate route exists
-    with conn.cursor() as cur:
-        cur.execute("SELECT 1 FROM routes WHERE route_id = %s;", (route_id,))
-        if not cur.fetchone():
-            raise HTTPException(status_code=404, detail=f"Route '{route_id}' not found.")
+    exists = db.execute("SELECT 1 FROM routes WHERE route_id = %s;", (route_id,), fetch="one")
+    if not exists:
+        raise HTTPException(status_code=404, detail=f"Route '{route_id}' not found.")
 
     # Build dynamic query
     conditions = ["route_id = %s"]
@@ -68,9 +67,7 @@ def get_route_history(
     ORDER BY date ASC, advance_days ASC;
     """
 
-    with conn.cursor() as cur:
-        cur.execute(query, params)
-        rows = cur.fetchall()
+    rows = db.execute(query, params, fetch="all")
 
     data = [
         RouteIndexOut(

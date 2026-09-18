@@ -14,7 +14,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from api.db import get_db_connection
+from api.db import DatabaseSession, get_db
 from api.models.schemas import (
     DailyApixResponse,
     WeeklyApixResponse,
@@ -40,7 +40,7 @@ def get_daily_apix(
         alias="date",
         description="Date (YYYY-MM-DD). Defaults to the latest available.",
     ),
-    conn=Depends(get_db_connection),
+    db: DatabaseSession = Depends(get_db),
 ):
     """Return the national APIx index for a single day."""
     if date_param:
@@ -62,9 +62,7 @@ def get_daily_apix(
         """
         params = (window,)
 
-    with conn.cursor() as cur:
-        cur.execute(query, params)
-        row = cur.fetchone()
+    row = db.execute(query, params, fetch="one")
 
     if not row:
         raise HTTPException(status_code=404, detail="No index data found for the given parameters.")
@@ -94,7 +92,7 @@ def get_weekly_apix(
         alias="date",
         description="End date of the 7-day window. Defaults to today.",
     ),
-    conn=Depends(get_db_connection),
+    db: DatabaseSession = Depends(get_db),
 ):
     """Return the 7-day rolling average of the national APIx index."""
     end = date_param or date.today()
@@ -112,9 +110,7 @@ def get_weekly_apix(
     WHERE window_category = %s
       AND date BETWEEN %s AND %s;
     """
-    with conn.cursor() as cur:
-        cur.execute(query, (window, start, end))
-        row = cur.fetchone()
+    row = db.execute(query, (window, start, end), fetch="one")
 
     if not row or row[5] == 0:
         raise HTTPException(status_code=404, detail="No index data found for the given week.")
@@ -145,7 +141,7 @@ def get_monthly_apix(
         description="Month in YYYY-MM format.",
         pattern=r"^\d{4}-\d{2}$",
     ),
-    conn=Depends(get_db_connection),
+    db: DatabaseSession = Depends(get_db),
 ):
     """Return the calendar-month average of the national APIx index."""
     query = """
@@ -159,9 +155,7 @@ def get_monthly_apix(
     WHERE window_category = %s
       AND TO_CHAR(date, 'YYYY-MM') = %s;
     """
-    with conn.cursor() as cur:
-        cur.execute(query, (window, month))
-        row = cur.fetchone()
+    row = db.execute(query, (window, month), fetch="one")
 
     if not row or row[3] == 0:
         raise HTTPException(status_code=404, detail=f"No index data found for {month}.")
