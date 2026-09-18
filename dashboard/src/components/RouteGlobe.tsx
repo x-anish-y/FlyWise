@@ -59,12 +59,15 @@ export interface RouteArcData {
 interface RouteGlobeProps {
   rankingData: RouteRankItem[];
   windowCategory?: "cpi_compatible" | "analytical";
+  theme?: "dark" | "light";
 }
 
 export default function RouteGlobe({
   rankingData,
   windowCategory = "cpi_compatible",
+  theme = "dark",
 }: RouteGlobeProps) {
+  const isLight = theme === "light";
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 500 });
@@ -204,33 +207,67 @@ export default function RouteGlobe({
   };
 
   return (
-    <div className="bg-[#151520] border border-[#232336] rounded-xl overflow-hidden shadow-2xl relative flex flex-col h-[520px]">
+    <div
+      className={`rounded-xl overflow-hidden relative flex flex-col h-[520px] transition-all duration-200 ${
+        isLight
+          ? "bg-[#FFFFFF] border border-[#CFE3F7] shadow-[0_4px_20px_rgba(207,227,247,0.5)]"
+          : "bg-[#151520] border border-[#232336] shadow-2xl"
+      }`}
+    >
       {/* Top Overlay Controls */}
       <div className="absolute top-4 left-4 right-4 z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pointer-events-none">
         {/* Title */}
-        <div className="pointer-events-auto bg-[#0d0d18]/85 backdrop-blur-md border border-[#232336] px-3.5 py-2 rounded-lg flex items-center gap-2.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-radar-ping" />
+        <div
+          className={`pointer-events-auto px-3.5 py-2 rounded-lg flex items-center gap-2.5 backdrop-blur-md transition-colors ${
+            isLight
+              ? "bg-[#FFFFFF]/90 border border-[#CFE3F7] shadow-sm text-[#0f172a]"
+              : "bg-[#0d0d18]/85 border border-[#232336] text-[#f8fafc]"
+          }`}
+        >
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-radar-ping" />
           <div>
-            <h3 className="font-space font-semibold text-xs tracking-wide text-[#f8fafc] flex items-center gap-1.5">
+            <h3
+              className={`font-space font-semibold text-xs tracking-wide flex items-center gap-1.5 ${
+                isLight ? "text-[#0f172a]" : "text-[#f8fafc]"
+              }`}
+            >
               <span>National & Cross-Border Airspace Radar</span>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#1b1b26] text-[#ffd481] border border-[#f0b429]/20">
+              <span
+                className={`text-[10px] font-mono px-1.5 py-0.2 rounded ${
+                  isLight
+                    ? "bg-[#E0F2FE] text-[#0284c7] border border-[#BAE6FD]"
+                    : "bg-[#1b1b26] text-[#ffd481] border border-[#f0b429]/20"
+                }`}
+              >
                 3D WebGL
               </span>
             </h3>
-            <p className="text-[10px] font-mono text-[#94a3b8]">
+            <p className={`text-[10px] font-mono ${isLight ? "text-[#64748b]" : "text-[#94a3b8]"}`}>
               {arcsData.length} Monitored Corridors · Arcs Tinted by Current Fare Index
             </p>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="pointer-events-auto flex items-center gap-2 bg-[#0d0d18]/85 backdrop-blur-md border border-[#232336] p-1 rounded-lg">
+        <div
+          className={`pointer-events-auto flex items-center gap-2 backdrop-blur-md p-1 rounded-lg transition-colors ${
+            isLight
+              ? "bg-[#FFFFFF]/90 border border-[#CFE3F7] shadow-sm"
+              : "bg-[#0d0d18]/85 border border-[#232336]"
+          }`}
+        >
           {/* Filter Pills */}
-          <div className="flex items-center gap-1 border-r border-[#232336] pr-2">
+          <div className={`flex items-center gap-1 border-r pr-2 ${isLight ? "border-[#CFE3F7]" : "border-[#232336]"}`}>
             <button
               onClick={() => setFilter("all")}
               className={`px-2 py-1 text-[10px] font-mono font-medium rounded transition-colors ${
-                filter === "all" ? "bg-[#232336] text-[#ffd481]" : "text-[#94a3b8] hover:text-[#f8fafc]"
+                filter === "all"
+                  ? isLight
+                    ? "bg-[#0284c7] text-white shadow-xs"
+                    : "bg-[#232336] text-[#ffd481]"
+                  : isLight
+                  ? "text-[#64748b] hover:text-[#0f172a]"
+                  : "text-[#94a3b8] hover:text-[#f8fafc]"
               }`}
             >
               All
@@ -238,7 +275,13 @@ export default function RouteGlobe({
             <button
               onClick={() => setFilter("domestic")}
               className={`px-2 py-1 text-[10px] font-mono font-medium rounded transition-colors ${
-                filter === "domestic" ? "bg-[#232336] text-[#38bdf8]" : "text-[#94a3b8] hover:text-[#f8fafc]"
+                filter === "domestic"
+                  ? isLight
+                    ? "bg-[#0284c7] text-white shadow-xs"
+                    : "bg-[#232336] text-[#38bdf8]"
+                  : isLight
+                  ? "text-[#64748b] hover:text-[#0f172a]"
+                  : "text-[#94a3b8] hover:text-[#f8fafc]"
               }`}
             >
               Domestic
@@ -246,7 +289,13 @@ export default function RouteGlobe({
             <button
               onClick={() => setFilter("international")}
               className={`px-2 py-1 text-[10px] font-mono font-medium rounded transition-colors ${
-                filter === "international" ? "bg-[#232336] text-[#c4e7ff]" : "text-[#94a3b8] hover:text-[#f8fafc]"
+                filter === "international"
+                  ? isLight
+                    ? "bg-[#0284c7] text-white shadow-xs"
+                    : "bg-[#232336] text-[#c4e7ff]"
+                  : isLight
+                  ? "text-[#64748b] hover:text-[#0f172a]"
+                  : "text-[#94a3b8] hover:text-[#f8fafc]"
               }`}
             >
               International
@@ -255,8 +304,10 @@ export default function RouteGlobe({
 
           <button
             onClick={toggleRotate}
-            className={`p-1.5 rounded hover:bg-[#1b1b26] transition-colors ${
-              isRotating ? "text-[#ffd481]" : "text-[#94a3b8]"
+            className={`p-1.5 rounded transition-colors ${
+              isLight
+                ? isRotating ? "text-[#0284c7] bg-[#F0F9FF]" : "text-[#64748b] hover:bg-[#F0F9FF]"
+                : isRotating ? "text-[#ffd481]" : "text-[#94a3b8] hover:bg-[#1b1b26]"
             }`}
             title={isRotating ? "Pause Auto-Rotation" : "Start Auto-Rotation"}
           >
@@ -264,7 +315,11 @@ export default function RouteGlobe({
           </button>
           <button
             onClick={resetView}
-            className="p-1.5 rounded hover:bg-[#1b1b26] text-[#94a3b8] hover:text-[#ffd481] transition-colors"
+            className={`p-1.5 rounded transition-colors ${
+              isLight
+                ? "text-[#64748b] hover:text-[#0284c7] hover:bg-[#F0F9FF]"
+                : "text-[#94a3b8] hover:text-[#ffd481] hover:bg-[#1b1b26]"
+            }`}
             title="Reset View to India"
           >
             <Compass className="w-3.5 h-3.5" />
@@ -278,8 +333,12 @@ export default function RouteGlobe({
           ref={globeRef}
           width={dimensions.width}
           height={dimensions.height}
-          backgroundColor="rgba(10, 10, 15, 0)"
-          globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
+          backgroundColor="rgba(0, 0, 0, 0)"
+          globeImageUrl={
+            isLight
+              ? "//unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
+              : "//unpkg.com/three-globe/example/img/earth-night.jpg"
+          }
           atmosphereColor="#38bdf8"
           atmosphereAltitude={0.15}
           // Arcs
@@ -314,30 +373,42 @@ export default function RouteGlobe({
           labelText="iata"
           labelSize={1.1}
           labelDotRadius={0.2}
-          labelColor={() => "#f8fafc"}
+          labelColor={() => (isLight ? "#0f172a" : "#f8fafc")}
         />
       </div>
 
       {/* Active Route Popup Overlay Card (Requirement 4) */}
       {activeRoute && (
-        <div className="absolute bottom-12 left-4 z-20 bg-[#151520]/95 backdrop-blur-md border border-[#232336] p-4 rounded-xl shadow-2xl max-w-sm min-w-[260px] text-xs font-sans animate-in fade-in slide-in-from-bottom-3 duration-200">
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#232336]">
+        <div
+          className={`absolute bottom-12 left-4 z-20 p-4 rounded-xl max-w-sm min-w-[260px] text-xs font-sans backdrop-blur-md animate-in fade-in slide-in-from-bottom-3 duration-200 ${
+            isLight
+              ? "bg-[#FFFFFF]/95 border border-[#CFE3F7] shadow-[0_8px_30px_rgba(207,227,247,0.8)] text-[#0f172a]"
+              : "bg-[#151520]/95 border border-[#232336] shadow-2xl text-[#f8fafc]"
+          }`}
+        >
+          <div className={`flex items-center justify-between pb-2 mb-2 border-b ${isLight ? "border-[#CFE3F7]" : "border-[#232336]"}`}>
             <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-[#1b1b26] flex items-center justify-center border border-[#38bdf8]/30">
-                <Plane className="w-3.5 h-3.5 text-[#38bdf8] transform -rotate-45" />
+              <span
+                className={`w-6 h-6 rounded-lg flex items-center justify-center border ${
+                  isLight ? "bg-[#F0F9FF] border-[#BAE6FD]" : "bg-[#1b1b26] border-[#38bdf8]/30"
+                }`}
+              >
+                <Plane className="w-3.5 h-3.5 text-[#0284c7] transform -rotate-45" />
               </span>
               <div>
-                <span className="font-mono font-bold text-sm text-[#f8fafc] tracking-wide">
+                <span className={`font-mono font-bold text-sm tracking-wide ${isLight ? "text-[#0f172a]" : "text-[#f8fafc]"}`}>
                   {activeRoute.route_id}
                 </span>
-                <span className="text-[10px] text-[#94a3b8] block">
+                <span className={`text-[10px] block ${isLight ? "text-[#64748b]" : "text-[#94a3b8]"}`}>
                   {AIRPORTS[activeRoute.origin]?.city} → {AIRPORTS[activeRoute.destination]?.city}
                 </span>
               </div>
             </div>
             <button
               onClick={() => setActiveRoute(null)}
-              className="text-[#94a3b8] hover:text-[#f8fafc] text-xs px-1.5 py-0.5 rounded hover:bg-[#232336]"
+              className={`text-xs px-1.5 py-0.5 rounded transition-colors ${
+                isLight ? "text-[#64748b] hover:text-[#0f172a] hover:bg-[#F0F9FF]" : "text-[#94a3b8] hover:text-[#f8fafc] hover:bg-[#232336]"
+              }`}
             >
               ✕
             </button>
@@ -346,18 +417,20 @@ export default function RouteGlobe({
           <div className="space-y-2 font-mono">
             {/* Price Relative Metric */}
             <div className="flex items-center justify-between">
-              <span className="text-[#94a3b8] text-[11px]">Current Price Relative:</span>
-              <span className="font-bold text-base text-[#ffd481] tabular-nums">
+              <span className={`text-[11px] ${isLight ? "text-[#64748b]" : "text-[#94a3b8]"}`}>Current Price Relative:</span>
+              <span className={`font-bold text-base tabular-nums ${isLight ? "text-[#0284c7]" : "text-[#ffd481]"}`}>
                 {activeRoute.price_relative.toFixed(1)}
               </span>
             </div>
 
             {/* Baseline comparison */}
             <div className="flex items-center justify-between">
-              <span className="text-[#94a3b8] text-[11px]">Fare Movement:</span>
+              <span className={`text-[11px] ${isLight ? "text-[#64748b]" : "text-[#94a3b8]"}`}>Fare Movement:</span>
               <span
                 className={`font-semibold flex items-center gap-1 tabular-nums ${
-                  activeRoute.price_relative >= 100 ? "text-[#ef4444]" : "text-[#22c55e]"
+                  activeRoute.price_relative >= 100
+                    ? isLight ? "text-[#dc2626]" : "text-[#ef4444]"
+                    : isLight ? "text-[#16a34a]" : "text-[#22c55e]"
                 }`}
               >
                 {activeRoute.price_relative >= 100 ? (
@@ -371,22 +444,40 @@ export default function RouteGlobe({
             </div>
 
             {/* Badges */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-[#1f1f2a]">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#1b1b26] text-[#ffd481] border border-[#f0b429]/30">
-                <CheckCircle2 className="w-2.5 h-2.5 text-[#f0b429]" />
+            <div className={`flex flex-wrap items-center gap-1.5 pt-1.5 border-t ${isLight ? "border-[#CFE3F7]" : "border-[#1f1f2a]"}`}>
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                  isLight
+                    ? "bg-[#FEF3C7] text-[#B45309] border-[#FDE68A]"
+                    : "bg-[#1b1b26] text-[#ffd481] border-[#f0b429]/30"
+                }`}
+              >
+                <CheckCircle2 className="w-2.5 h-2.5" />
                 Direct Route
               </span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#1b1b26] text-[#38bdf8] border border-[#38bdf8]/30">
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                  isLight
+                    ? "bg-[#E0F2FE] text-[#0284C7] border-[#BAE6FD]"
+                    : "bg-[#1b1b26] text-[#38bdf8] border-[#38bdf8]/30"
+                }`}
+              >
                 <Layers className="w-2.5 h-2.5" />
                 CPI-Compatible
               </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-[#0d0d18] text-[#94a3b8] border border-[#232336]">
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase border ${
+                  isLight
+                    ? "bg-[#F0F9FF] text-[#64748b] border-[#CFE3F7]"
+                    : "bg-[#0d0d18] text-[#94a3b8] border-[#232336]"
+                }`}
+              >
                 {activeRoute.category}
               </span>
             </div>
 
             {/* Timestamp */}
-            <div className="flex items-center justify-between pt-1 text-[10px] text-[#64748b]">
+            <div className={`flex items-center justify-between pt-1 text-[10px] ${isLight ? "text-[#64748b]" : "text-[#64748b]"}`}>
               <span className="flex items-center gap-1">
                 <Clock className="w-3 h-3" />
                 Last Ingested: 18:00 IST
@@ -398,7 +489,13 @@ export default function RouteGlobe({
       )}
 
       {/* Bottom Telemetry Strip Legend */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 bg-[#0d0d18]/90 backdrop-blur-md border-t border-[#232336] px-4 py-2 flex flex-wrap items-center justify-between text-[11px] font-mono text-[#94a3b8]">
+      <div
+        className={`absolute bottom-0 left-0 right-0 z-10 backdrop-blur-md border-t px-4 py-2 flex flex-wrap items-center justify-between text-[11px] font-mono transition-colors ${
+          isLight
+            ? "bg-[#FFFFFF]/90 border-[#CFE3F7] text-[#64748b]"
+            : "bg-[#0d0d18]/90 border-[#232336] text-[#94a3b8]"
+        }`}
+      >
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-1 rounded-full bg-[#ef4444]" />
@@ -409,7 +506,7 @@ export default function RouteGlobe({
             Below Base (&lt;100 Index / Discount)
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[#ffd481]" />
+            <span className={`w-2 h-2 rounded-full ${isLight ? "bg-[#0284c7]" : "bg-[#ffd481]"}`} />
             Airport Hubs
           </span>
         </div>

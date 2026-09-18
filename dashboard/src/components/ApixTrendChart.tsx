@@ -18,12 +18,15 @@ import { Activity, ShieldCheck, Clock } from "lucide-react";
 interface ApixTrendChartProps {
   data: TrendDataPoint[];
   windowCategory?: string;
+  theme?: "dark" | "light";
 }
 
 export default function ApixTrendChart({
   data,
   windowCategory = "cpi_compatible",
+  theme = "dark",
 }: ApixTrendChartProps) {
+  const isLight = theme === "light";
   const [activeSeries, setActiveSeries] = useState<"all" | "overall" | "domestic" | "international">("all");
 
   const minVal = Math.floor(
@@ -37,14 +40,26 @@ export default function ApixTrendChart({
     switch (status?.toLowerCase()) {
       case "live":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold tracking-wider bg-emerald-950/70 border border-emerald-500/40 text-emerald-400 shadow-[0_0_8px_rgba(34,197,94,0.3)]">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span
+            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold tracking-wider ${
+              isLight
+                ? "bg-[#ECFDF5] border border-[#A7F3D0] text-[#047857]"
+                : "bg-emerald-950/70 border border-emerald-500/40 text-emerald-400 shadow-[0_0_8px_rgba(34,197,94,0.3)]"
+            }`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             LIVE
           </span>
         );
       case "mtd":
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium tracking-wider bg-amber-950/60 border border-amber-500/40 text-amber-300">
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium tracking-wider ${
+              isLight
+                ? "bg-[#FEF3C7] border border-[#FDE68A] text-[#B45309]"
+                : "bg-amber-950/60 border border-amber-500/40 text-amber-300"
+            }`}
+          >
             <Clock className="w-2.5 h-2.5" />
             MTD
           </span>
@@ -52,7 +67,13 @@ export default function ApixTrendChart({
       case "finalized":
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium tracking-wider bg-sky-950/60 border border-sky-500/40 text-sky-300">
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium tracking-wider ${
+              isLight
+                ? "bg-[#E0F2FE] border border-[#BAE6FD] text-[#0284C7]"
+                : "bg-sky-950/60 border border-sky-500/40 text-sky-300"
+            }`}
+          >
             <ShieldCheck className="w-2.5 h-2.5" />
             FINALIZED
           </span>
@@ -84,40 +105,46 @@ export default function ApixTrendChart({
           cy={cy}
           r={isLast ? 5.5 : 3.5}
           fill={isLive ? "#22c55e" : "#f0b429"}
-          stroke="#0a0a0f"
+          stroke={isLight ? "#ffffff" : "#0a0a0f"}
           strokeWidth={2}
         />
       </g>
     );
   };
 
-  // Bespoke dark tooltip matching Stitch AeroMetric spec
+  // Bespoke tooltip matching theme
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const p = payload[0].payload as TrendDataPoint;
       return (
-        <div className="bg-[#151520]/95 backdrop-blur-md border border-[#232336] p-3 rounded-lg shadow-2xl min-w-[200px] text-xs font-sans">
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#232336]">
-            <span className="text-[#94a3b8] font-mono">{p.date}</span>
+        <div
+          className={`backdrop-blur-md p-3 rounded-lg shadow-2xl min-w-[200px] text-xs font-sans ${
+            isLight
+              ? "bg-[#FFFFFF]/95 border border-[#CFE3F7] shadow-[0_8px_25px_rgba(207,227,247,0.8)] text-[#0f172a]"
+              : "bg-[#151520]/95 border border-[#232336] shadow-2xl text-[#f8fafc]"
+          }`}
+        >
+          <div className={`flex items-center justify-between pb-2 mb-2 border-b ${isLight ? "border-[#CFE3F7]" : "border-[#232336]"}`}>
+            <span className={`font-mono ${isLight ? "text-[#64748b]" : "text-[#94a3b8]"}`}>{p.date}</span>
             {renderStatusBadge(p.status)}
           </div>
           <div className="space-y-1.5 font-mono">
-            <div className="flex justify-between items-center text-[#ffd481]">
-              <span className="flex items-center gap-1.5 text-[11px] text-[#94a3b8]">
+            <div className={`flex justify-between items-center ${isLight ? "text-[#b45309]" : "text-[#ffd481]"}`}>
+              <span className={`flex items-center gap-1.5 text-[11px] ${isLight ? "text-[#64748b]" : "text-[#94a3b8]"}`}>
                 <span className="w-2 h-2 rounded-full bg-[#f0b429]" />
                 Overall APIx:
               </span>
               <span className="font-semibold text-sm tabular-nums">{p.overall_apix.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between items-center text-[#38bdf8]">
-              <span className="flex items-center gap-1.5 text-[11px] text-[#94a3b8]">
+            <div className={`flex justify-between items-center ${isLight ? "text-[#0284c7]" : "text-[#38bdf8]"}`}>
+              <span className={`flex items-center gap-1.5 text-[11px] ${isLight ? "text-[#64748b]" : "text-[#94a3b8]"}`}>
                 <span className="w-2 h-2 rounded-full bg-[#38bdf8]" />
                 DAPIx (Dom):
               </span>
               <span className="tabular-nums">{p.domestic_apix.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between items-center text-[#c4e7ff]">
-              <span className="flex items-center gap-1.5 text-[11px] text-[#94a3b8]">
+            <div className={`flex justify-between items-center ${isLight ? "text-[#0369a1]" : "text-[#c4e7ff]"}`}>
+              <span className={`flex items-center gap-1.5 text-[11px] ${isLight ? "text-[#64748b]" : "text-[#94a3b8]"}`}>
                 <span className="w-2 h-2 rounded-full bg-[#c4e7ff]" />
                 IAPIx (Intl):
               </span>
@@ -131,30 +158,46 @@ export default function ApixTrendChart({
   };
 
   return (
-    <div className="bg-[#151520] border border-[#232336] rounded-xl p-5 shadow-lg flex flex-col h-full">
+    <div
+      className={`rounded-xl p-5 flex flex-col h-full transition-all duration-200 ${
+        isLight
+          ? "bg-[#FFFFFF] border border-[#CFE3F7] shadow-[0_4px_20px_rgba(207,227,247,0.5)]"
+          : "bg-[#151520] border border-[#232336] shadow-lg"
+      }`}
+    >
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-3 border-b border-[#232336]">
+      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-3 border-b ${isLight ? "border-[#CFE3F7]" : "border-[#232336]"}`}>
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-base font-semibold font-space tracking-wide text-[#f8fafc]">
+            <h2 className={`text-base font-semibold font-space tracking-wide ${isLight ? "text-[#0f172a]" : "text-[#f8fafc]"}`}>
               National APIx Trajectory
             </h2>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#1f1f2a] text-[#ffd481] border border-[#f0b429]/20">
+            <span
+              className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                isLight
+                  ? "bg-[#E0F2FE] text-[#0284c7] border-[#BAE6FD]"
+                  : "bg-[#1f1f2a] text-[#ffd481] border-[#f0b429]/20"
+              }`}
+            >
               {windowCategory === "cpi_compatible" ? "CPI Compatible (T+21/60)" : "Analytical (All)"}
             </span>
           </div>
-          <p className="text-xs text-[#94a3b8] mt-0.5 font-sans">
+          <p className={`text-xs mt-0.5 font-sans ${isLight ? "text-[#64748b]" : "text-[#94a3b8]"}`}>
             Jevons Geometric Mean weighted with Young-type route baskets (Base = 100.0)
           </p>
         </div>
 
         {/* Series Filter & Legend */}
-        <div className="flex items-center gap-1 bg-[#0d0d18] p-1 rounded-lg border border-[#232336]">
+        <div className={`flex items-center gap-1 p-1 rounded-lg border ${isLight ? "bg-[#F0F9FF] border-[#CFE3F7]" : "bg-[#0d0d18] border-[#232336]"}`}>
           <button
             onClick={() => setActiveSeries("all")}
             className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
               activeSeries === "all"
-                ? "bg-[#232336] text-[#ffd481]"
+                ? isLight
+                  ? "bg-[#0284c7] text-white shadow-xs"
+                  : "bg-[#232336] text-[#ffd481]"
+                : isLight
+                ? "text-[#64748b] hover:text-[#0f172a]"
                 : "text-[#94a3b8] hover:text-[#f8fafc]"
             }`}
           >
@@ -164,7 +207,11 @@ export default function ApixTrendChart({
             onClick={() => setActiveSeries("overall")}
             className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
               activeSeries === "overall"
-                ? "bg-[#232336] text-[#f0b429]"
+                ? isLight
+                  ? "bg-[#d97706] text-white shadow-xs"
+                  : "bg-[#232336] text-[#f0b429]"
+                : isLight
+                ? "text-[#64748b] hover:text-[#0f172a]"
                 : "text-[#94a3b8] hover:text-[#f8fafc]"
             }`}
           >
@@ -174,7 +221,11 @@ export default function ApixTrendChart({
             onClick={() => setActiveSeries("domestic")}
             className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
               activeSeries === "domestic"
-                ? "bg-[#232336] text-[#38bdf8]"
+                ? isLight
+                  ? "bg-[#0284c7] text-white shadow-xs"
+                  : "bg-[#232336] text-[#38bdf8]"
+                : isLight
+                ? "text-[#64748b] hover:text-[#0f172a]"
                 : "text-[#94a3b8] hover:text-[#f8fafc]"
             }`}
           >
@@ -184,7 +235,11 @@ export default function ApixTrendChart({
             onClick={() => setActiveSeries("international")}
             className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors ${
               activeSeries === "international"
-                ? "bg-[#232336] text-[#c4e7ff]"
+                ? isLight
+                  ? "bg-[#0369a1] text-white shadow-xs"
+                  : "bg-[#232336] text-[#c4e7ff]"
+                : isLight
+                ? "text-[#64748b] hover:text-[#0f172a]"
                 : "text-[#94a3b8] hover:text-[#f8fafc]"
             }`}
           >
@@ -199,32 +254,32 @@ export default function ApixTrendChart({
           <AreaChart data={data} margin={{ top: 15, right: 15, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="overallGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#f0b429" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#f0b429" stopOpacity={0.0} />
+                <stop offset="5%" stopColor={isLight ? "#d97706" : "#f0b429"} stopOpacity={0.25} />
+                <stop offset="95%" stopColor={isLight ? "#d97706" : "#f0b429"} stopOpacity={0.0} />
               </linearGradient>
               <linearGradient id="domGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.2} />
-                <stop offset="95%" stopColor="#38bdf8" stopOpacity={0.0} />
+                <stop offset="5%" stopColor="#0284c7" stopOpacity={0.2} />
+                <stop offset="95%" stopColor="#0284c7" stopOpacity={0.0} />
               </linearGradient>
             </defs>
-            <CartesianGrid stroke="#1f1f2a" strokeDasharray="3 3" vertical={false} />
+            <CartesianGrid stroke={isLight ? "#E2EEF9" : "#1f1f2a"} strokeDasharray="3 3" vertical={false} />
             <XAxis
               dataKey="displayDate"
-              stroke="#475569"
-              tick={{ fill: "#94a3b8", fontSize: 11, fontFamily: "var(--font-jetbrains-mono)" }}
+              stroke={isLight ? "#94a3b8" : "#475569"}
+              tick={{ fill: isLight ? "#64748b" : "#94a3b8", fontSize: 11, fontFamily: "var(--font-jetbrains-mono)" }}
               tickLine={false}
-              axisLine={{ stroke: "#232336" }}
+              axisLine={{ stroke: isLight ? "#CFE3F7" : "#232336" }}
             />
             <YAxis
               domain={[minVal, maxVal]}
-              stroke="#475569"
-              tick={{ fill: "#94a3b8", fontSize: 11, fontFamily: "var(--font-jetbrains-mono)" }}
+              stroke={isLight ? "#94a3b8" : "#475569"}
+              tick={{ fill: isLight ? "#64748b" : "#94a3b8", fontSize: 11, fontFamily: "var(--font-jetbrains-mono)" }}
               tickLine={false}
-              axisLine={{ stroke: "#232336" }}
+              axisLine={{ stroke: isLight ? "#CFE3F7" : "#232336" }}
               tickFormatter={(v) => v.toFixed(0)}
             />
             <Tooltip content={<CustomTooltip />} />
-            <ReferenceLine y={100} stroke="#475569" strokeDasharray="4 4" label={{ value: "Base 100", fill: "#64748b", fontSize: 10, position: "insideBottomRight" }} />
+            <ReferenceLine y={100} stroke={isLight ? "#94a3b8" : "#475569"} strokeDasharray="4 4" label={{ value: "Base 100", fill: isLight ? "#64748b" : "#94a3b8", fontSize: 10, position: "insideBottomRight" }} />
 
             {(activeSeries === "all" || activeSeries === "overall") && (
               <Area
