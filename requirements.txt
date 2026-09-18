@@ -16,3 +16,8 @@ playwright>=1.40,<2
 
 # PostgreSQL driver (ingestion pipeline → Neon)
 psycopg2-binary>=2.9,<3
+
+# FastAPI + ASGI server (API)
+fastapi>=0.110,<1
+uvicorn[standard]>=0.29,<1
+pydantic>=2.0,<3
