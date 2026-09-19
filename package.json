@@ -1,0 +1,11 @@
+{
+  "name": "flywise-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FlyWise Real-Time Airfare Price Index (APIx)",
+  "scripts": {
+    "dev": "npm --prefix dashboard run dev",
+    "build": "npm --prefix dashboard run build",
+    "start": "npm --prefix dashboard run start"
+  }
+}
