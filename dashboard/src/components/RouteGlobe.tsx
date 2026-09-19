@@ -349,10 +349,10 @@ export default function RouteGlobe({
           arcEndLng={(d: any) => d.endLng}
           arcColor={(d: any) => d.color}
           arcAltitude={0.25}
-          arcStroke={2.0}
-          arcDashLength={0.9}
-          arcDashGap={0.1}
-          arcDashAnimateTime={2000}
+          arcStroke={(d: any) => (activeRoute?.route_id === d.route_id ? 0.55 : 0.35)}
+          arcDashLength={0.85}
+          arcDashGap={0.15}
+          arcDashAnimateTime={2400}
           onArcHover={(arc: any) => {
             if (arc) setActiveRoute(arc);
           }}
@@ -365,7 +365,7 @@ export default function RouteGlobe({
           pointLng="lng"
           pointColor="color"
           pointAltitude={0.015}
-          pointRadius={0.7}
+          pointRadius={0.45}
           // Labels
           labelsData={pointsData}
           labelLat="lat"
@@ -373,7 +373,9 @@ export default function RouteGlobe({
           labelText="iata"
           labelSize={1.1}
           labelDotRadius={0.2}
-          labelColor={() => (isLight ? "#0f172a" : "#f8fafc")}
+          labelAltitude={0.018}
+          labelResolution={3}
+          labelColor={() => "#ffffff"}
         />
       </div>
 

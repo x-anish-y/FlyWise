@@ -301,15 +301,15 @@ export default function LightRouteRadar({
                   width="26"
                   height="14"
                   rx="3"
-                  fill="#FFFFFF"
-                  stroke="#CFE3F7"
+                  fill="#0284C7"
+                  stroke="#38BDF8"
                   strokeWidth="0.75"
                 />
                 <text
                   x={airport.iata === "DXB" ? -21 : 20}
                   y="0"
                   textAnchor="middle"
-                  fill="#0C4A6E"
+                  fill="#FFFFFF"
                   fontSize="8.5"
                   fontFamily="var(--font-jetbrains-mono)"
                   fontWeight="bold"
