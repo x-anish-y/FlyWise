@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any, Generator, Optional, Sequence
 
@@ -35,11 +36,24 @@ load_dotenv(dotenv_path=PROJECT_ROOT / "config" / ".env")
 _pool: Optional[ThreadedConnectionPool] = None
 
 
-def init_pool(minconn: int = 1, maxconn: int = 5) -> ThreadedConnectionPool:
-    """Initialize the ThreadedConnectionPool once at application startup."""
+def init_pool(
+    minconn: Optional[int] = None,
+    maxconn: Optional[int] = None,
+) -> ThreadedConnectionPool:
+    """Initialize the ThreadedConnectionPool once at application startup.
+
+    Default pool configuration: minconn=2, maxconn=20.
+    Comfortably covers concurrent dashboard loads (15-20 concurrent requests)
+    while remaining well below Neon's connection limit (100 direct, 10,000 on pooler).
+    """
     global _pool
     if _pool is not None and not _pool.closed:
         return _pool
+
+    if minconn is None:
+        minconn = int(os.getenv("DB_POOL_MINCONN", "2"))
+    if maxconn is None:
+        maxconn = int(os.getenv("DB_POOL_MAXCONN", "20"))
 
     db_url = os.getenv("NEON_DATABASE_URL")
     if not db_url:
@@ -63,7 +77,7 @@ def get_pool() -> ThreadedConnectionPool:
     """Return the active connection pool, initializing lazily if necessary."""
     global _pool
     if _pool is None or _pool.closed:
-        _pool = init_pool(minconn=1, maxconn=5)
+        _pool = init_pool()
     return _pool
 
 
@@ -73,30 +87,59 @@ class DatabaseSession:
     Catches psycopg2.OperationalError (e.g. Neon SSL closed unexpectedly),
     discards and replaces the stale connection, and retries the query once
     before raising an HTTP 503 error.
+
+    Guarantees that every checked-out connection is returned or closed on every exit path.
     """
 
     def __init__(self, pool: ThreadedConnectionPool):
         self.pool = pool
         self.conn: Any = None
         self.is_broken: bool = False
-        self._acquire_connection()
-
-    def _acquire_connection(self) -> None:
-        """Check out a connection from the pool and configure autocommit."""
-        self.conn = self.pool.getconn()
         try:
-            self.conn.autocommit = True
+            self._acquire_connection()
         except Exception:
-            pass
+            self.close()
+            raise
+
+    def _acquire_connection(self, max_retries: int = 5, retry_delay: float = 0.05) -> None:
+        """Check out a connection from the pool and configure autocommit.
+
+        If the pool is momentarily saturated by a concurrent burst, briefly retries
+        with backoff before failing, allowing short-lived in-flight queries to
+        complete and return their connections to the pool.
+        """
+        for attempt in range(max_retries):
+            try:
+                self.conn = self.pool.getconn()
+                try:
+                    self.conn.autocommit = True
+                except Exception:
+                    pass
+                return
+            except psycopg2.pool.PoolError as pe:
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay * (attempt + 1))
+                    continue
+                logger.error(
+                    "Database connection pool exhausted (%d max connections) after %d checkout attempts: %s",
+                    getattr(self.pool, "maxconn", 20),
+                    max_retries,
+                    pe,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Database connection pool exhausted under concurrent load. Please retry shortly.",
+                ) from pe
 
     def _discard_connection(self) -> None:
-        """Discard a broken connection so it is not returned to the pool."""
-        if self.conn is not None:
+        """Discard a broken or stale connection, ensuring it is removed from the pool's tracking."""
+        conn = self.conn
+        self.conn = None
+        if conn is not None:
             try:
-                self.pool.putconn(self.conn, close=True)
-            except Exception:
-                pass
-            self.conn = None
+                self.pool.putconn(conn, close=True)
+            except Exception as exc:
+                logger.warning("Error putting closed connection back to pool: %s", exc)
 
     def execute(
         self,
@@ -165,7 +208,7 @@ class DatabaseSession:
                     ) from e
 
             except Exception:
-                if self.conn and not self.conn.closed:
+                if self.conn and not getattr(self.conn, "closed", True):
                     try:
                         self.conn.rollback()
                     except Exception:
@@ -173,20 +216,51 @@ class DatabaseSession:
                 raise
 
     def close(self) -> None:
-        """Return the connection to the pool (or discard if broken)."""
-        if self.conn is not None:
-            if not self.conn.closed and not self.is_broken:
-                try:
-                    self.pool.putconn(self.conn)
-                except Exception:
-                    pass
-            else:
-                self._discard_connection()
-            self.conn = None
+        """Return the connection to the pool (or discard if broken).
+
+        Guaranteed to release the connection slot from the pool's internal
+        tracking (_used / _rused) under ALL conditions:
+        1. If connection is healthy and not broken: try putconn(conn, close=False).
+        2. If putconn fails (e.g. rollback failure on stale socket) or connection
+           is broken/closed: fallback immediately to putconn(conn, close=True),
+           which skips rollback and guarantees key removal from _used.
+        3. Sets self.conn = None immediately to prevent double-return.
+        """
+        conn = self.conn
+        self.conn = None
+        if conn is None:
+            return
+
+        if not self.is_broken and not getattr(conn, "closed", True):
+            try:
+                self.pool.putconn(conn, close=False)
+                return
+            except Exception as exc:
+                logger.warning(
+                    "Error returning healthy connection to pool (%s: %s). Discarding with close=True...",
+                    type(exc).__name__,
+                    exc,
+                )
+
+        # Fallback / broken path: close=True guarantees removal from pool._used
+        try:
+            self.pool.putconn(conn, close=True)
+        except Exception as exc:
+            logger.error(
+                "Failed to discard connection with close=True (%s: %s).",
+                type(exc).__name__,
+                exc,
+            )
+
+    def __enter__(self) -> DatabaseSession:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
 
 
 def get_db() -> Generator[DatabaseSession, None, None]:
-    """FastAPI dependency: checks out a DatabaseSession and returns it on completion."""
+    """FastAPI dependency: checks out a DatabaseSession and guarantees return on completion."""
     pool = get_pool()
     session = DatabaseSession(pool)
     try:

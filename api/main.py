@@ -23,7 +23,7 @@ from api.routers import apix, routes, coverage, policy_export
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize resources on startup and clean up on shutdown."""
-    init_pool(minconn=1, maxconn=5)
+    init_pool()
     yield
     close_pool()
 
