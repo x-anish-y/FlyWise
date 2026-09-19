@@ -210,7 +210,7 @@ export default function RouteGlobe({
     <div
       className={`rounded-xl overflow-hidden relative flex flex-col h-[520px] transition-all duration-200 ${
         isLight
-          ? "bg-[#FFFFFF] border border-[#CFE3F7] shadow-[0_4px_20px_rgba(207,227,247,0.5)]"
+          ? "bg-[#f8fafc] border border-[#CFE3F7] shadow-[0_4px_20px_rgba(207,227,247,0.5)]"
           : "bg-[#151520] border border-[#232336] shadow-2xl"
       }`}
     >
@@ -328,7 +328,20 @@ export default function RouteGlobe({
       </div>
 
       {/* 3D Globe Canvas */}
-      <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing">
+      <div
+        ref={containerRef}
+        className={`w-full h-full cursor-grab active:cursor-grabbing relative overflow-hidden transition-colors duration-300 ${
+          isLight
+            ? "bg-[radial-gradient(circle_at_50%_50%,_#bae6fd_0%,_#cbe8fe_25%,_#e0f2fe_50%,_#f0f9ff_75%,_#f8fafc_100%)]"
+            : "bg-[#151520]"
+        }`}
+      >
+        {/* Atmospheric Sky Glow Halo in Light Mode */}
+        {isLight && (
+          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+            <div className="w-[460px] h-[460px] rounded-full bg-[#38bdf8]/20 blur-3xl" />
+          </div>
+        )}
         <Globe
           ref={globeRef}
           width={dimensions.width}

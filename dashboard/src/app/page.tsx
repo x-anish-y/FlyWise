@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 
 import {
+  API_BASE_URL,
   getDailyApix,
   getWeeklyApix,
   getCoverage,
@@ -306,7 +307,7 @@ export default function DashboardPage() {
       </header>
 
       {/* Main Content Dashboard */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-8 py-6 space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-8 py-6 space-y-10">
         {/* KPI Strip */}
         <motion.div
           variants={containerVariants}
@@ -506,15 +507,15 @@ export default function DashboardPage() {
           variants={containerVariants}
           initial="hidden"
           animate="show"
-          className="grid grid-cols-1 lg:grid-cols-12 gap-6"
+          className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch"
         >
           {/* Left 7 cols: APIx Trend Chart */}
-          <motion.div variants={itemVariants} className="lg:col-span-7 h-[420px]">
+          <motion.div variants={itemVariants} className="lg:col-span-7 min-h-[460px]">
             <ApixTrendChart data={trendData} windowCategory={windowCategory} theme={theme} />
           </motion.div>
 
           {/* Right 5 cols: Lead Time Curve Chart */}
-          <motion.div variants={itemVariants} className="lg:col-span-5 h-[420px]">
+          <motion.div variants={itemVariants} className="lg:col-span-5 min-h-[460px]">
             <LeadTimeCurveChart
               initialData={leadTimeData}
               availableRoutes={routesList.map((r) => r.route_id)}
@@ -528,15 +529,15 @@ export default function DashboardPage() {
           variants={containerVariants}
           initial="hidden"
           animate="show"
-          className="grid grid-cols-1 lg:grid-cols-12 gap-6"
+          className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch"
         >
           {/* Left 6 cols: Route Ranking Chart */}
-          <motion.div variants={itemVariants} className="lg:col-span-6 h-[420px]">
+          <motion.div variants={itemVariants} className="lg:col-span-6 min-h-[420px]">
             <RouteRankingChart data={rankingData} theme={theme} />
           </motion.div>
 
           {/* Right 6 cols: Hikes Drops Chart */}
-          <motion.div variants={itemVariants} className="lg:col-span-6 h-[420px]">
+          <motion.div variants={itemVariants} className="lg:col-span-6 min-h-[420px]">
             <HikesDropsChart data={hikesDropsData} theme={theme} />
           </motion.div>
         </motion.div>
@@ -570,7 +571,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-3">
               <a
-                href="http://127.0.0.1:8000/docs"
+                href={`${API_BASE_URL}/docs`}
                 target="_blank"
                 rel="noreferrer"
                 className={`inline-flex items-center gap-1 px-3 py-1 rounded text-xs font-mono transition-colors border ${
@@ -694,23 +695,55 @@ export default function DashboardPage() {
             FlyWise Real-Time Airfare Price Index (APIx) · Ministry of Statistics & Programme Implementation (MoSPI)
           </p>
           <div className={`flex items-center gap-4 ${isLight ? "text-[#0284c7]" : "text-[#94a3b8]"}`}>
-            <a
-              href="http://127.0.0.1:8000/policy/apix.csv"
-              className={`transition-colors flex items-center gap-1 ${
+            <button
+              onClick={async () => {
+                try {
+                  const res = await fetch(`${API_BASE_URL}/policy/apix.csv`, {
+                    headers: { "X-API-Key": process.env.NEXT_PUBLIC_EXPORT_API_KEY || "" },
+                  });
+                  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "flywise_apix.csv";
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch (e) {
+                  console.error("Export CSV failed:", e);
+                }
+              }}
+              className={`transition-colors flex items-center gap-1 cursor-pointer ${
                 isLight ? "hover:text-[#0369a1]" : "hover:text-[#ffd481]"
               }`}
             >
               Export CSV
-            </a>
+            </button>
             <span>·</span>
-            <a
-              href="http://127.0.0.1:8000/policy/apix.json"
-              className={`transition-colors flex items-center gap-1 ${
+            <button
+              onClick={async () => {
+                try {
+                  const res = await fetch(`${API_BASE_URL}/policy/apix.json`, {
+                    headers: { "X-API-Key": process.env.NEXT_PUBLIC_EXPORT_API_KEY || "" },
+                  });
+                  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "flywise_apix.json";
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch (e) {
+                  console.error("Export JSON failed:", e);
+                }
+              }}
+              className={`transition-colors flex items-center gap-1 cursor-pointer ${
                 isLight ? "hover:text-[#0369a1]" : "hover:text-[#ffd481]"
               }`}
             >
               Export JSON
-            </a>
+            </button>
           </div>
         </div>
       </footer>

@@ -174,7 +174,7 @@ export default function LeadTimeCurveChart({
       {/* Chart Canvas */}
       <div className="flex-1 w-full min-h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 15, right: 15, left: -20, bottom: 0 }}>
+          <LineChart data={data} margin={{ top: 15, right: 15, left: -20, bottom: 20 }}>
             <CartesianGrid stroke={isLight ? "#E2EEF9" : "#1f1f2a"} strokeDasharray="3 3" vertical={false} />
             <XAxis
               dataKey="lead_time"

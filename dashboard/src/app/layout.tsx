@@ -24,6 +24,15 @@ export const metadata: Metadata = {
   title: "FlyWise APIx — Real-Time Airfare Price Index Dashboard",
   description:
     "Aviation market telemetry & national airfare price index intelligence for India. SIH 2026 · MoSPI / DIID.",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico" },
+    ],
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
