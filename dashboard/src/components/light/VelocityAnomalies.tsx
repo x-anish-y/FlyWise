@@ -22,7 +22,7 @@ const STEEPEST_DECLINES: AnomalyItem[] = [
 const STEEPEST_SURGES: AnomalyItem[] = [
   { routeId: "DEL-SXR", name: "DEL ⇄ SXR", pctChange: +14.2, currentRel: 122.0, driver: "Autumn Tourism Surge & Weather" },
   { routeId: "DEL-BOM", name: "DEL ⇄ BOM", pctChange: +11.6, currentRel: 124.8, driver: "Financial Sector Peak Demand" },
-  { routeId: "BLR-DEL", name: "BLR ⇄ DEL", pctChange: +9.4, currentRel: 118.3, driver: "Tech Summit Heavy Booking" },
+  { routeId: "DEL-BLR", name: "DEL ⇄ BLR", pctChange: +9.4, currentRel: 118.3, driver: "Tech Summit Heavy Booking" },
   { routeId: "DEL-GOI", name: "DEL ⇄ GOI", pctChange: +8.1, currentRel: 114.2, driver: "Weekend Leisure Inflow" },
   { routeId: "DEL-DXB", name: "DEL ⇄ DXB", pctChange: +6.5, currentRel: 112.5, driver: "Gulf Remittance Travel Cycle" },
 ];

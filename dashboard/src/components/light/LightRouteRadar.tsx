@@ -45,9 +45,8 @@ export interface RadarFlightPath {
 
 const FLIGHT_PATHS: RadarFlightPath[] = [
   { id: "DEL-BOM", origin: "DEL", dest: "BOM", fareIndex: 124.8, category: "metro", status: "surge", flightsToday: 182 },
-  { id: "BLR-DEL", origin: "BLR", dest: "DEL", fareIndex: 118.3, category: "metro", status: "surge", flightsToday: 142 },
-  { id: "BOM-BLR", origin: "BOM", dest: "BLR", fareIndex: 104.5, category: "metro", status: "normal", flightsToday: 96 },
   { id: "DEL-BLR", origin: "DEL", dest: "BLR", fareIndex: 108.2, category: "metro", status: "normal", flightsToday: 130 },
+  { id: "BOM-BLR", origin: "BOM", dest: "BLR", fareIndex: 104.5, category: "metro", status: "normal", flightsToday: 96 },
   { id: "DEL-CCU", origin: "DEL", dest: "CCU", fareIndex: 96.4, category: "metro", status: "depressed", flightsToday: 74 },
   { id: "DEL-AMD", origin: "DEL", dest: "AMD", fareIndex: 101.8, category: "metro", status: "normal", flightsToday: 68 },
   { id: "DEL-GOI", origin: "DEL", dest: "GOI", fareIndex: 114.2, category: "tier2", status: "surge", flightsToday: 48 },

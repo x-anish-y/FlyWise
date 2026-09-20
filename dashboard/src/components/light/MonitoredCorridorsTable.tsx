@@ -16,7 +16,6 @@ export interface CorridorRow {
 
 const CORRIDOR_DATA: CorridorRow[] = [
   { id: "DEL-BOM", sector: "Delhi (DEL) ⇄ Mumbai (BOM)", category: "Domestic", weightPct: 14.2, priceRelative: 124.8, deviationPct: +24.8, status: "ONLINE", dailyFlights: 182 },
-  { id: "BLR-DEL", sector: "Bengaluru (BLR) ⇄ Delhi (DEL)", category: "Domestic", weightPct: 11.8, priceRelative: 118.3, deviationPct: +18.3, status: "ONLINE", dailyFlights: 142 },
   { id: "DEL-DXB", sector: "Delhi (DEL) ⇄ Dubai (DXB)", category: "International", weightPct: 8.5, priceRelative: 112.5, deviationPct: +12.5, status: "ONLINE", dailyFlights: 38 },
   { id: "DEL-BLR", sector: "Delhi (DEL) ⇄ Bengaluru (BLR)", category: "Domestic", weightPct: 10.4, priceRelative: 108.2, deviationPct: +8.2, status: "ONLINE", dailyFlights: 130 },
   { id: "BOM-BLR", sector: "Mumbai (BOM) ⇄ Bengaluru (BLR)", category: "Domestic", weightPct: 7.9, priceRelative: 104.5, deviationPct: +4.5, status: "ONLINE", dailyFlights: 96 },

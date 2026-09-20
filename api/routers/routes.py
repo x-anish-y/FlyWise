@@ -48,6 +48,21 @@ def list_routes(db: DatabaseSession = Depends(get_db)):
     ]
 
 
+def _resolve_canonical_route_id(db: DatabaseSession, route_id: str) -> str:
+    """Resolve a route ID or its reverse bidirectional pair (e.g. BLR-DEL -> DEL-BLR)."""
+    exists = db.execute("SELECT 1 FROM routes WHERE route_id = %s;", (route_id,), fetch="one")
+    if exists:
+        return route_id
+    if "-" in route_id:
+        parts = route_id.split("-")
+        if len(parts) == 2:
+            rev = f"{parts[1]}-{parts[0]}"
+            rev_exists = db.execute("SELECT 1 FROM routes WHERE route_id = %s;", (rev,), fetch="one")
+            if rev_exists:
+                return rev
+    return route_id
+
+
 def _resolve_window_filter(
     db: DatabaseSession,
     route_id: str,
@@ -101,6 +116,9 @@ def get_route_history(
     db: DatabaseSession = Depends(get_db),
 ):
     """Return the price-relative history for a specific route."""
+    # Resolve canonical route ID (e.g. BLR-DEL -> DEL-BLR)
+    route_id = _resolve_canonical_route_id(db, route_id)
+
     # Validate route exists
     exists = db.execute("SELECT 1 FROM routes WHERE route_id = %s;", (route_id,), fetch="one")
     if not exists:
@@ -174,7 +192,10 @@ def get_route_summary(
     - tracking_since: earliest date recorded in route_index
     - last_updated: collection_timestamp of the most recent cycle
     """
-    # 1. Validate route exists and retrieve seasonality
+    # 1. Resolve canonical route ID (e.g. BLR-DEL -> DEL-BLR)
+    route_id = _resolve_canonical_route_id(db, route_id)
+
+    # Validate route exists and retrieve seasonality
     route_meta = db.execute(
         "SELECT is_seasonal, season_window FROM routes WHERE route_id = %s;", (route_id,), fetch="one"
     )

@@ -157,14 +157,20 @@ export async function getMonthlyApix(
 
 export async function getRoutes(): Promise<RouteItem[]> {
   const fallback: RouteItem[] = [
-    { route_id: "DEL-BOM", origin_airport: "DEL", destination_airport: "BOM", domestic_international: "domestic", route_weight: 1.0, currency: "INR", is_seasonal: false, season_window: null },
-    { route_id: "BLR-DEL", origin_airport: "BLR", destination_airport: "DEL", domestic_international: "domestic", route_weight: 1.0, currency: "INR", is_seasonal: false, season_window: null },
-    { route_id: "BOM-GOI", origin_airport: "BOM", destination_airport: "GOI", domestic_international: "domestic", route_weight: 1.0, currency: "INR", is_seasonal: false, season_window: null },
-    { route_id: "BLR-HYD", origin_airport: "BLR", destination_airport: "HYD", domestic_international: "domestic", route_weight: 1.0, currency: "INR", is_seasonal: false, season_window: null },
-    { route_id: "DEL-DXB", origin_airport: "DEL", destination_airport: "DXB", domestic_international: "international", route_weight: 1.0, currency: "AED", is_seasonal: false, season_window: null },
-    { route_id: "BOM-LHR", origin_airport: "BOM", destination_airport: "LHR", domestic_international: "international", route_weight: 1.0, currency: "GBP", is_seasonal: false, season_window: null },
-    { route_id: "DEL-SIN", origin_airport: "DEL", destination_airport: "SIN", domestic_international: "international", route_weight: 1.0, currency: "SGD", is_seasonal: false, season_window: null },
-    { route_id: "MAA-DEL", origin_airport: "MAA", destination_airport: "DEL", domestic_international: "domestic", route_weight: 1.0, currency: "INR", is_seasonal: false, season_window: null },
+    { route_id: "DEL-BOM", origin_airport: "DEL", destination_airport: "BOM", domestic_international: "domestic", route_weight: 0.142, currency: "INR", is_seasonal: false, season_window: null },
+    { route_id: "DEL-BLR", origin_airport: "DEL", destination_airport: "BLR", domestic_international: "domestic", route_weight: 0.118, currency: "INR", is_seasonal: false, season_window: null },
+    { route_id: "BOM-BLR", origin_airport: "BOM", destination_airport: "BLR", domestic_international: "domestic", route_weight: 0.079, currency: "INR", is_seasonal: false, season_window: null },
+    { route_id: "DEL-CCU", origin_airport: "DEL", destination_airport: "CCU", domestic_international: "domestic", route_weight: 0.073, currency: "INR", is_seasonal: false, season_window: null },
+    { route_id: "BLR-HYD", origin_airport: "BLR", destination_airport: "HYD", domestic_international: "domestic", route_weight: 0.048, currency: "INR", is_seasonal: false, season_window: null },
+    { route_id: "MAA-DEL", origin_airport: "MAA", destination_airport: "DEL", domestic_international: "domestic", route_weight: 0.062, currency: "INR", is_seasonal: false, season_window: null },
+    { route_id: "BOM-HYD", origin_airport: "BOM", destination_airport: "HYD", domestic_international: "domestic", route_weight: 0.042, currency: "INR", is_seasonal: false, season_window: null },
+    { route_id: "DEL-AMD", origin_airport: "DEL", destination_airport: "AMD", domestic_international: "domestic", route_weight: 0.051, currency: "INR", is_seasonal: false, season_window: null },
+    { route_id: "DEL-GOI", origin_airport: "DEL", destination_airport: "GOI", domestic_international: "domestic", route_weight: 0.035, currency: "INR", is_seasonal: true, season_window: "Oct-Mar" },
+    { route_id: "DEL-SXR", origin_airport: "DEL", destination_airport: "SXR", domestic_international: "domestic", route_weight: 0.021, currency: "INR", is_seasonal: true, season_window: "Apr-Oct" },
+    { route_id: "DEL-DXB", origin_airport: "DEL", destination_airport: "DXB", domestic_international: "international", route_weight: 0.085, currency: "AED", is_seasonal: false, season_window: null },
+    { route_id: "BOM-DXB", origin_airport: "BOM", destination_airport: "DXB", domestic_international: "international", route_weight: 0.071, currency: "AED", is_seasonal: false, season_window: null },
+    { route_id: "DEL-SIN", origin_airport: "DEL", destination_airport: "SIN", domestic_international: "international", route_weight: 0.046, currency: "SGD", is_seasonal: false, season_window: null },
+    { route_id: "BOM-SIN", origin_airport: "BOM", destination_airport: "SIN", domestic_international: "international", route_weight: 0.048, currency: "SGD", is_seasonal: false, season_window: null },
   ];
   return fetchJson<RouteItem[]>("/routes", fallback);
 }
@@ -377,13 +383,20 @@ export async function getRouteRankingData(): Promise<RouteRankItem[]> {
   if (ranked.every((r) => r.price_relative === 100.0)) {
     const seedValues: Record<string, number> = {
       "DEL-BOM": 124.8,
+      "DEL-BLR": 118.3,
       "BLR-DEL": 118.3,
+      "DEL-SXR": 122.0,
+      "DEL-GOI": 114.2,
       "DEL-DXB": 112.5,
-      "BOM-GOI": 109.1,
-      "BLR-HYD": 104.2,
-      "MAA-DEL": 98.4,
-      "DEL-SIN": 94.7,
-      "BOM-LHR": 89.2,
+      "BOM-BLR": 104.5,
+      "BLR-HYD": 103.2,
+      "DEL-AMD": 101.8,
+      "MAA-DEL": 98.6,
+      "BOM-DXB": 97.4,
+      "DEL-CCU": 96.4,
+      "BOM-HYD": 94.8,
+      "DEL-SIN": 93.8,
+      "BOM-SIN": 91.2,
     };
     return ranked
       .map((r) => ({
@@ -408,13 +421,18 @@ export async function getHikesDropsData(): Promise<HikeDropItem[]> {
   const ranking = await getRouteRankingData();
   const seedDeltas: Record<string, number> = {
     "DEL-BOM": 8.4,
+    "DEL-BLR": 5.2,
     "BLR-DEL": 5.2,
-    "BOM-GOI": 3.1,
+    "DEL-SXR": 7.1,
+    "DEL-GOI": 3.1,
+    "BOM-BLR": 2.8,
     "BLR-HYD": 1.4,
     "MAA-DEL": -1.8,
     "DEL-DXB": -3.5,
+    "BOM-DXB": -2.8,
+    "DEL-CCU": -4.6,
     "DEL-SIN": -4.2,
-    "BOM-LHR": -6.8,
+    "BOM-SIN": -5.1,
   };
 
   return ranking.map((r) => {

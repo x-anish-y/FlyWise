@@ -49,6 +49,7 @@ export default function LightLeadTimeCurve({
 
   const routeMultipliers: Record<string, number> = {
     "DEL-BOM": 1.12,
+    "DEL-BLR": 1.07,
     "BLR-DEL": 1.07,
     "BOM-BLR": 0.98,
     "DEL-CCU": 0.94,
@@ -139,7 +140,7 @@ export default function LightLeadTimeCurve({
         {/* Route Filter Buttons */}
         <div className="flex items-center gap-1.5 p-1 bg-[#F0F9FF] border border-[#CFE3F7] rounded-lg">
           <span className="text-[10px] font-mono text-[#64748B] px-1.5 hidden md:inline">Route:</span>
-          {["DEL-BOM", "BLR-DEL", "DEL-GOI", "DEL-SXR"].map((r) => (
+          {["DEL-BOM", "DEL-BLR", "DEL-GOI", "DEL-SXR"].map((r) => (
             <button
               key={r}
               onClick={() => setActiveRoute(r)}

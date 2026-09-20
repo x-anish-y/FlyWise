@@ -131,7 +131,6 @@ export default function RouteGlobe({
 
     const definedCorridors = [
       { id: "DEL-BOM", orig: "DEL", dest: "BOM", cat: "domestic", isCpi: true },
-      { id: "BLR-DEL", orig: "BLR", dest: "DEL", cat: "domestic", isCpi: true },
       { id: "DEL-BLR", orig: "DEL", dest: "BLR", cat: "domestic", isCpi: true },
       { id: "BOM-BLR", orig: "BOM", dest: "BLR", cat: "domestic", isCpi: true },
       { id: "BLR-HYD", orig: "BLR", dest: "HYD", cat: "domestic", isCpi: true },

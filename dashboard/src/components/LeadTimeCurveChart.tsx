@@ -23,7 +23,7 @@ interface LeadTimeCurveChartProps {
 
 export default function LeadTimeCurveChart({
   initialData,
-  availableRoutes = ["DEL-BOM", "BLR-DEL", "BOM-GOI", "BLR-HYD", "DEL-DXB", "BOM-LHR"],
+  availableRoutes = ["DEL-BOM", "DEL-BLR", "BOM-BLR", "BLR-HYD", "DEL-DXB", "BOM-DXB"],
   onSelectRoute,
   theme = "dark",
 }: LeadTimeCurveChartProps) {
@@ -38,11 +38,12 @@ export default function LeadTimeCurveChart({
   // Route factor multiplier for realistic variation
   const routeMultipliers: Record<string, number> = {
     "DEL-BOM": 1.15,
+    "DEL-BLR": 1.08,
     "BLR-DEL": 1.08,
-    "BOM-GOI": 1.22,
+    "BOM-BLR": 1.02,
     "BLR-HYD": 0.95,
     "DEL-DXB": 1.04,
-    "BOM-LHR": 0.92,
+    "BOM-DXB": 0.98,
   };
 
   const currentMultiplier = routeMultipliers[selectedRoute] ?? 1.1;

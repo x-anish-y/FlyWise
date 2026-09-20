@@ -24,10 +24,10 @@ interface RouteDispersionItem {
 const DISPERSION_DATA: RouteDispersionItem[] = [
   { id: "DEL-BOM", label: "DEL ⇄ BOM", tag: "Business Trunk", priceRelative: 124.8, category: "metro" },
   { id: "DEL-SXR", label: "DEL ⇄ SXR", tag: "Seasonal Surge", priceRelative: 122.0, category: "tier2" },
-  { id: "BLR-DEL", label: "BLR ⇄ DEL", tag: "Tech Corridor", priceRelative: 118.3, category: "metro" },
   { id: "DEL-GOI", label: "DEL ⇄ GOI", tag: "Holiday Demand", priceRelative: 114.2, category: "tier2" },
   { id: "DEL-DXB", label: "DEL ⇄ DXB", tag: "Gulf Trunk", priceRelative: 112.5, category: "intl" },
   { id: "DEL-BLR", label: "DEL ⇄ BLR", tag: "Enterprise Line", priceRelative: 108.2, category: "metro" },
+  { id: "BOM-DXB", label: "BOM ⇄ DXB", tag: "Gulf Express", priceRelative: 97.4, category: "intl" },
   { id: "BOM-BLR", label: "BOM ⇄ BLR", tag: "Regional Commerce", priceRelative: 104.5, category: "metro" },
   { id: "BLR-HYD", label: "BLR ⇄ HYD", tag: "Tier-2 Express", priceRelative: 103.2, category: "tier2" },
   { id: "DEL-AMD", label: "DEL ⇄ AMD", tag: "Commercial Hub", priceRelative: 101.8, category: "metro" },

@@ -133,10 +133,32 @@ export default function RouteDrilldown({
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [summaryRes, historyRes] = await Promise.all([
+      let [summaryRes, historyRes] = await Promise.all([
         getRouteSummary(routeId, windowCategory),
         getRouteHistory(routeId),
       ]);
+
+      // If no records and route is reversible (e.g. BLR-DEL vs DEL-BLR), try reversed corridor
+      if (
+        (!historyRes.data || historyRes.data.length === 0) &&
+        summaryRes.today_close == null &&
+        summaryRes.alltime_high == null &&
+        routeId.includes("-")
+      ) {
+        const parts = routeId.split("-");
+        if (parts.length === 2) {
+          const revId = `${parts[1]}-${parts[0]}`;
+          const [revSummary, revHistory] = await Promise.all([
+            getRouteSummary(revId, windowCategory),
+            getRouteHistory(revId),
+          ]);
+          if ((revHistory.data && revHistory.data.length > 0) || revSummary.today_close != null) {
+            summaryRes = revSummary;
+            historyRes = revHistory;
+          }
+        }
+      }
+
       setSummary(summaryRes);
       setAllHistory(historyRes.data || []);
     } catch (err) {
