@@ -174,12 +174,30 @@ def get_route_summary(
     - tracking_since: earliest date recorded in route_index
     - last_updated: collection_timestamp of the most recent cycle
     """
-    # 1. Validate route exists
-    exists = db.execute(
-        "SELECT 1 FROM routes WHERE route_id = %s;", (route_id,), fetch="one"
+    # 1. Validate route exists and retrieve seasonality
+    route_meta = db.execute(
+        "SELECT is_seasonal, season_window FROM routes WHERE route_id = %s;", (route_id,), fetch="one"
     )
-    if not exists:
+    if not route_meta:
         raise HTTPException(status_code=404, detail=f"Route '{route_id}' not found.")
+
+    is_seasonal = bool(route_meta[0])
+    season_window = route_meta[1]
+    is_in_season = True
+    if is_seasonal and season_window:
+        today_m = date.today().month
+        parts = season_window.strip().split("-")
+        if len(parts) == 2:
+            m_map = {
+                "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+                "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+            }
+            sm = m_map.get(parts[0].strip()[:3].lower(), 1)
+            em = m_map.get(parts[1].strip()[:3].lower(), 12)
+            if sm <= em:
+                is_in_season = sm <= today_m <= em
+            else:
+                is_in_season = today_m >= sm or today_m <= em
 
     win_clause, win_params = _resolve_window_filter(db, route_id, window)
 
@@ -292,5 +310,8 @@ def get_route_summary(
         alltime_low_date=alltime_low_date,
         tracking_since=tracking_since,
         last_updated=last_updated,
+        is_seasonal=is_seasonal,
+        season_window=season_window,
+        is_in_season=is_in_season,
     )
 

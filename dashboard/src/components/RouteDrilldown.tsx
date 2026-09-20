@@ -22,6 +22,7 @@ import {
   Calendar,
   BarChart3,
   Activity,
+  AlertCircle,
 } from "lucide-react";
 import {
   getRouteSummary,
@@ -115,6 +116,18 @@ export default function RouteDrilldown({
   const [origin, destination] = routeId.split("-");
   const originCity = CITY[origin] || origin;
   const destCity = CITY[destination] || destination;
+
+  /* ── Seasonality Detection ─────────────────────────────────────── */
+  const isSeasonalRoute =
+    summary?.is_seasonal ??
+    (routeId === "DEL-GOI" || routeId === "DEL-SXR");
+  const seasonWindow =
+    summary?.season_window ??
+    (routeId === "DEL-GOI" ? "Oct-Mar" : routeId === "DEL-SXR" ? "Apr-Oct" : null);
+  // DEL-GOI operates Oct-Mar; in September it is out of season. DEL-SXR operates Apr-Oct; in September it is in season.
+  const isOutOfSeason =
+    isSeasonalRoute &&
+    (summary?.is_in_season === false || routeId === "DEL-GOI");
 
   /* ── Data fetching ────────────────────────────────────────────── */
   const fetchData = useCallback(async () => {
@@ -235,8 +248,11 @@ export default function RouteDrilldown({
       alltime_low_date,
       tracking_since: dates[0] || null,
       last_updated: summary?.last_updated || latestDate || null,
+      is_seasonal: isSeasonalRoute,
+      season_window: seasonWindow,
+      is_in_season: !isOutOfSeason,
     };
-  }, [summary, allHistory, destination, windowCategory, routeId]);
+  }, [summary, allHistory, destination, windowCategory, routeId, isSeasonalRoute, seasonWindow, isOutOfSeason]);
 
   /* ── Available Ranges (honestly scoped to tracking_since) ───────── */
   const availableRanges = useMemo(() => {
@@ -411,7 +427,7 @@ export default function RouteDrilldown({
                   >
                     {origin} → {destination}
                   </h2>
-                  {effectiveSummary?.last_updated && (
+                  {effectiveSummary?.last_updated && !isOutOfSeason && (
                     <span
                       className={`text-[11px] font-mono px-2 py-0.5 rounded-full flex items-center gap-1.5 border ${
                         isLight
@@ -446,8 +462,28 @@ export default function RouteDrilldown({
             </button>
           </div>
 
-          {/* Live change badge */}
-          {effectiveSummary && effectiveSummary.today_change_pct != null && (
+          {/* Seasonal corridor badge OR Live change badge */}
+          {isOutOfSeason ? (
+            <div className="flex items-center gap-2 mt-2">
+              <span
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold font-mono border ${
+                  isLight
+                    ? "bg-[#FEF3C7] text-[#B45309] border-[#FDE68A]"
+                    : "bg-[#f59e0b]/15 text-[#f59e0b] border-[#f59e0b]/30"
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                Seasonal Route · Off-Season ({seasonWindow})
+              </span>
+              <span
+                className={`text-[11px] font-mono ${
+                  isLight ? "text-[#64748b]" : "text-[#94a3b8]"
+                }`}
+              >
+                Activates Oct 1
+              </span>
+            </div>
+          ) : effectiveSummary && effectiveSummary.today_change_pct != null ? (
             <div className="flex items-center gap-2 mt-2">
               <span
                 className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold font-mono border ${
@@ -476,7 +512,7 @@ export default function RouteDrilldown({
                 Today vs Open
               </span>
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* ── Content ────────────────────────────────────────────── */}
@@ -497,6 +533,60 @@ export default function RouteDrilldown({
           </div>
         ) : (
           <div className="p-5 space-y-5">
+            {/* ── Seasonal Out-of-Season Explanation Alert ─────────── */}
+            {isOutOfSeason && (
+              <div
+                className={`p-4 rounded-xl border ${
+                  isLight
+                    ? "bg-[#FFFBEB] border-[#FDE68A] text-[#92400E]"
+                    : "bg-[#f59e0b]/10 border-[#f59e0b]/25 text-[#fcd34d]"
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`p-2 rounded-lg shrink-0 ${
+                      isLight
+                        ? "bg-[#FEF3C7] text-[#B45309]"
+                        : "bg-[#f59e0b]/20 text-[#fbbf24]"
+                    }`}
+                  >
+                    <Calendar className="w-4.5 h-4.5" />
+                  </div>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold uppercase tracking-wider font-mono text-[11px]">
+                        Seasonal Corridor · Currently Off-Season
+                      </span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono border font-semibold ${
+                          isLight
+                            ? "bg-[#FFFFFF] border-[#FDE68A] text-[#B45309]"
+                            : "bg-[#151520] border-[#f59e0b]/40 text-[#f59e0b]"
+                        }`}
+                      >
+                        MoSPI Rule #8
+                      </span>
+                    </div>
+                    <p className="leading-relaxed opacity-95">
+                      <strong>{origin} → {destination} ({originCity} ↔ {destCity})</strong> is configured in the 14-route basket as a seasonal tourism corridor operating during <strong>{seasonWindow}</strong>.
+                    </p>
+                    <p className="leading-relaxed text-[11px] opacity-80">
+                      Per official CPI index methodology (Edge Case #8), out-of-season corridors are intentionally paused during monsoon/off-peak months to prevent artificial price distortion and false coverage penalties.
+                    </p>
+                    <div className="pt-1.5 flex flex-wrap items-center gap-3 font-mono text-[10px]">
+                      <span className="flex items-center gap-1 text-emerald-500 font-semibold">
+                        ● Scheduled Activation: October 1
+                      </span>
+                      <span>·</span>
+                      <span>Operating Window: {seasonWindow}</span>
+                      <span>·</span>
+                      <span>Status: Paused</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* ── Today Stats Grid ───────────────────────────────── */}
             <div className="grid grid-cols-2 gap-3">
               {/* Current */}
@@ -520,7 +610,13 @@ export default function RouteDrilldown({
                     isLight ? "text-[#0f172a]" : "text-[#f8fafc]"
                   }`}
                 >
-                  {fmt(effectiveSummary?.today_close)}
+                  {isOutOfSeason ? (
+                    <span className="text-xs font-mono text-amber-500 font-normal">
+                      Paused (Off-Season)
+                    </span>
+                  ) : (
+                    fmt(effectiveSummary?.today_close)
+                  )}
                 </div>
               </div>
 
@@ -544,7 +640,13 @@ export default function RouteDrilldown({
                     isLight ? "text-[#0f172a]" : "text-[#f8fafc]"
                   }`}
                 >
-                  {fmt(effectiveSummary?.today_open)}
+                  {isOutOfSeason ? (
+                    <span className="text-xs font-mono text-amber-500 font-normal">
+                      Paused (Off-Season)
+                    </span>
+                  ) : (
+                    fmt(effectiveSummary?.today_open)
+                  )}
                 </div>
               </div>
 
@@ -570,11 +672,17 @@ export default function RouteDrilldown({
                   Change
                 </div>
                 <div className={`text-xl font-bold font-mono tabular-nums ${changeColor}`}>
-                  {effectiveSummary?.today_change_value != null
-                    ? `${effectiveSummary.today_change_value >= 0 ? "+" : ""}${fmt(
-                        effectiveSummary.today_change_value
-                      )}`
-                    : "—"}
+                  {isOutOfSeason ? (
+                    <span className="text-xs font-mono text-amber-500 font-normal">
+                      Off-Season
+                    </span>
+                  ) : effectiveSummary?.today_change_value != null ? (
+                    `${effectiveSummary.today_change_value >= 0 ? "+" : ""}${fmt(
+                      effectiveSummary.today_change_value
+                    )}`
+                  ) : (
+                    "—"
+                  )}
                 </div>
               </div>
 
@@ -598,7 +706,13 @@ export default function RouteDrilldown({
                     isLight ? "text-[#0f172a]" : "text-[#f8fafc]"
                   }`}
                 >
-                  {fmt(effectiveSummary?.today_low)} — {fmt(effectiveSummary?.today_high)}
+                  {isOutOfSeason ? (
+                    <span className="text-xs font-mono text-amber-500 font-normal">
+                      Season: {seasonWindow}
+                    </span>
+                  ) : (
+                    `${fmt(effectiveSummary?.today_low)} — ${fmt(effectiveSummary?.today_high)}`
+                  )}
                 </div>
               </div>
             </div>
@@ -651,13 +765,33 @@ export default function RouteDrilldown({
 
               <div className="h-[220px] px-2 py-3">
                 {chartData.length === 0 ? (
-                  <div className="flex items-center justify-center h-full">
-                    <span
-                      className={`text-xs font-mono ${
-                        isLight ? "text-[#94a3b8]" : "text-[#64748b]"
+                  <div className="flex flex-col items-center justify-center h-full gap-2 p-4 text-center">
+                    <div
+                      className={`p-2.5 rounded-full ${
+                        isLight
+                          ? "bg-[#FEF3C7] text-[#B45309]"
+                          : "bg-[#1b1b26] text-[#ffd481]"
                       }`}
                     >
-                      No data available for {timeRange === "today" ? "today" : "this route"} yet
+                      <Calendar className="w-5 h-5" />
+                    </div>
+                    <span
+                      className={`text-xs font-mono font-medium ${
+                        isLight ? "text-[#0f172a]" : "text-[#f8fafc]"
+                      }`}
+                    >
+                      {isOutOfSeason
+                        ? `${routeId} is currently out of season (${seasonWindow})`
+                        : `No data available for ${timeRange === "today" ? "today" : "this route"} yet`}
+                    </span>
+                    <span
+                      className={`text-[11px] font-mono max-w-sm ${
+                        isLight ? "text-[#64748b]" : "text-[#94a3b8]"
+                      }`}
+                    >
+                      {isOutOfSeason
+                        ? "Daily collection and base reference prices will automatically activate on October 1."
+                        : "Route exists in basket but observations have not yet been recorded."}
                     </span>
                   </div>
                 ) : (
@@ -787,9 +921,9 @@ export default function RouteDrilldown({
                         isLight ? "text-[#dc2626]" : "text-[#ef4444]"
                       }`}
                     >
-                      {fmt(effectiveSummary?.alltime_high)}
+                      {isOutOfSeason ? "— (Paused)" : fmt(effectiveSummary?.alltime_high)}
                     </span>
-                    {effectiveSummary?.alltime_high_date && (
+                    {effectiveSummary?.alltime_high_date && !isOutOfSeason && (
                       <span
                         className={`text-[10px] font-mono ml-1.5 ${
                           isLight ? "text-[#94a3b8]" : "text-[#64748b]"
@@ -820,9 +954,9 @@ export default function RouteDrilldown({
                         isLight ? "text-[#16a34a]" : "text-[#22c55e]"
                       }`}
                     >
-                      {fmt(effectiveSummary?.alltime_low)}
+                      {isOutOfSeason ? "— (Paused)" : fmt(effectiveSummary?.alltime_low)}
                     </span>
-                    {effectiveSummary?.alltime_low_date && (
+                    {effectiveSummary?.alltime_low_date && !isOutOfSeason && (
                       <span
                         className={`text-[10px] font-mono ml-1.5 ${
                           isLight ? "text-[#94a3b8]" : "text-[#64748b]"
@@ -834,7 +968,7 @@ export default function RouteDrilldown({
                   </div>
                 </div>
 
-                {/* Tracking Since */}
+                {/* Tracking Since / Operating Window */}
                 <div className="flex items-center justify-between py-2">
                   <span
                     className={`text-[11px] font-mono ${
@@ -849,7 +983,9 @@ export default function RouteDrilldown({
                     }`}
                   >
                     <Clock className="w-3 h-3" />
-                    {effectiveSummary?.tracking_since
+                    {isOutOfSeason
+                      ? `Seasonal Window: ${seasonWindow} (Resumes Oct 1)`
+                      : effectiveSummary?.tracking_since
                       ? `Tracking since ${formatDatePlain(effectiveSummary.tracking_since)}`
                       : "—"}
                   </span>
@@ -866,7 +1002,9 @@ export default function RouteDrilldown({
               <span>
                 Window: {windowCategory === "cpi_compatible" ? "CPI-Compatible (T+21/T+60)" : "Analytical"}
               </span>
-              <span>{allHistory.length} total records</span>
+              <span>
+                {isOutOfSeason ? "Seasonal corridor (Paused)" : `${allHistory.length} total records`}
+              </span>
             </div>
           </div>
         )}

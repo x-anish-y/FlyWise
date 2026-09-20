@@ -114,6 +114,10 @@ class RouteSummaryResponse(BaseModel):
     # Tracking metadata
     tracking_since: Optional[date] = None
     last_updated: Optional[datetime] = None
+    # Seasonality
+    is_seasonal: bool = False
+    season_window: Optional[str] = None
+    is_in_season: bool = True
 
 
 # ---------------------------------------------------------------------------

@@ -207,6 +207,9 @@ export interface RouteSummary {
   alltime_low_date: string | null;
   tracking_since: string | null;
   last_updated: string | null;
+  is_seasonal?: boolean;
+  season_window?: string | null;
+  is_in_season?: boolean;
 }
 
 export async function getRouteSummary(
@@ -229,6 +232,9 @@ export async function getRouteSummary(
     alltime_low_date: null,
     tracking_since: null,
     last_updated: null,
+    is_seasonal: routeId === "DEL-GOI" || routeId === "DEL-SXR",
+    season_window: routeId === "DEL-GOI" ? "Oct-Mar" : routeId === "DEL-SXR" ? "Apr-Oct" : null,
+    is_in_season: routeId !== "DEL-GOI",
   };
 
   try {
