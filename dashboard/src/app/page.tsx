@@ -47,6 +47,7 @@ import ApixTrendChart from "@/components/ApixTrendChart";
 import RouteRankingChart from "@/components/RouteRankingChart";
 import HikesDropsChart from "@/components/HikesDropsChart";
 import LeadTimeCurveChart from "@/components/LeadTimeCurveChart";
+import RouteDrilldown from "@/components/RouteDrilldown";
 
 const RouteGlobe = dynamic(() => import("@/components/RouteGlobe"), {
   ssr: false,
@@ -86,6 +87,7 @@ export default function DashboardPage() {
   const [routesList, setRoutesList] = useState<RouteItem[]>([]);
   const [coverageScore, setCoverageScore] = useState<number>(100);
   const [confidenceScore, setConfidenceScore] = useState<number>(98.5);
+  const [drilldownRouteId, setDrilldownRouteId] = useState<string | null>(null);
 
   const loadDashboardData = async (cat = windowCategory) => {
     try {
@@ -499,6 +501,7 @@ export default function DashboardPage() {
             rankingData={rankingData}
             windowCategory={windowCategory}
             theme={theme}
+            onRouteClick={(routeId) => setDrilldownRouteId(routeId)}
           />
         </motion.div>
 
@@ -533,12 +536,12 @@ export default function DashboardPage() {
         >
           {/* Left 6 cols: Route Ranking Chart */}
           <motion.div variants={itemVariants} className="lg:col-span-6 min-h-[420px]">
-            <RouteRankingChart data={rankingData} theme={theme} />
+            <RouteRankingChart data={rankingData} theme={theme} onRouteClick={(routeId) => setDrilldownRouteId(routeId)} />
           </motion.div>
 
           {/* Right 6 cols: Hikes Drops Chart */}
           <motion.div variants={itemVariants} className="lg:col-span-6 min-h-[420px]">
-            <HikesDropsChart data={hikesDropsData} theme={theme} />
+            <HikesDropsChart data={hikesDropsData} theme={theme} onRouteClick={(routeId) => setDrilldownRouteId(routeId)} />
           </motion.div>
         </motion.div>
 
@@ -747,6 +750,15 @@ export default function DashboardPage() {
           </div>
         </div>
       </footer>
+      {/* Route Drill-down Slide-over */}
+      {drilldownRouteId && (
+        <RouteDrilldown
+          routeId={drilldownRouteId}
+          onClose={() => setDrilldownRouteId(null)}
+          theme={theme}
+          windowCategory={windowCategory}
+        />
+      )}
     </div>
   );
 }

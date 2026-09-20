@@ -192,6 +192,59 @@ export async function getRouteHistory(
   );
 }
 
+export interface RouteSummary {
+  route_id: string;
+  window_category: string;
+  today_open: number | null;
+  today_close: number | null;
+  today_high: number | null;
+  today_low: number | null;
+  today_change_value: number | null;
+  today_change_pct: number | null;
+  alltime_high: number | null;
+  alltime_high_date: string | null;
+  alltime_low: number | null;
+  alltime_low_date: string | null;
+  tracking_since: string | null;
+  last_updated: string | null;
+}
+
+export async function getRouteSummary(
+  routeId: string,
+  window: "cpi_compatible" | "analytical" = "cpi_compatible"
+): Promise<RouteSummary> {
+  const query = new URLSearchParams({ window });
+  const fallback: RouteSummary = {
+    route_id: routeId,
+    window_category: window,
+    today_open: null,
+    today_close: null,
+    today_high: null,
+    today_low: null,
+    today_change_value: null,
+    today_change_pct: null,
+    alltime_high: null,
+    alltime_high_date: null,
+    alltime_low: null,
+    alltime_low_date: null,
+    tracking_since: null,
+    last_updated: null,
+  };
+
+  try {
+    const res = await fetch(
+      `${API_BASE_URL}/routes/${encodeURIComponent(routeId)}/summary?${query.toString()}`,
+      { cache: "no-store" }
+    );
+    if (!res.ok) {
+      return fallback;
+    }
+    return (await res.json()) as RouteSummary;
+  } catch {
+    return fallback;
+  }
+}
+
 export async function getCoverage(date?: string): Promise<ScoreResponse> {
   const query = date ? `?date=${date}` : "";
   return fetchJson<ScoreResponse>(`/coverage${query}`, {

@@ -18,11 +18,13 @@ import { TrendingUp, TrendingDown, ArrowLeftRight } from "lucide-react";
 interface HikesDropsChartProps {
   data: HikeDropItem[];
   theme?: "dark" | "light";
+  onRouteClick?: (routeId: string) => void;
 }
 
 export default function HikesDropsChart({
   data,
   theme = "dark",
+  onRouteClick,
 }: HikesDropsChartProps) {
   const isLight = theme === "light";
   // Sort by change_pct descending (hikes first down to drops)
@@ -185,11 +187,12 @@ export default function HikesDropsChart({
             />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: isLight ? "rgba(2, 132, 199, 0.08)" : "rgba(35, 35, 54, 0.4)" }} />
             <ReferenceLine x={0} stroke={isLight ? "#94a3b8" : "#94a3b8"} strokeWidth={1.5} />
-            <Bar dataKey="change_pct" barSize={16} radius={4}>
+            <Bar dataKey="change_pct" barSize={16} radius={4} onClick={(data: any) => onRouteClick?.(data?.route_id)} style={{ cursor: onRouteClick ? "pointer" : undefined }}>
               {sortedData.map((entry, index) => (
                 <Cell
                   key={`cell-diff-${index}`}
                   fill={entry.change_pct >= 0 ? (isLight ? "#dc2626" : "#ef4444") : (isLight ? "#16a34a" : "#22c55e")}
+                  style={{ cursor: onRouteClick ? "pointer" : undefined }}
                 />
               ))}
             </Bar>

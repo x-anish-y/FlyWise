@@ -18,11 +18,13 @@ import { Plane, TrendingUp, TrendingDown } from "lucide-react";
 interface RouteRankingChartProps {
   data: RouteRankItem[];
   theme?: "dark" | "light";
+  onRouteClick?: (routeId: string) => void;
 }
 
 export default function RouteRankingChart({
   data,
   theme = "dark",
+  onRouteClick,
 }: RouteRankingChartProps) {
   const isLight = theme === "light";
   const [filter, setFilter] = useState<"all" | "domestic" | "international">("all");
@@ -206,9 +208,9 @@ export default function RouteRankingChart({
                 position: "insideTopRight",
               }}
             />
-            <Bar dataKey="price_relative" radius={[0, 4, 4, 0]} barSize={16}>
+            <Bar dataKey="price_relative" radius={[0, 4, 4, 0]} barSize={16} onClick={(data: any) => onRouteClick?.(data?.route_id)} style={{ cursor: onRouteClick ? "pointer" : undefined }}>
               {filteredData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={getBarColor(entry.price_relative)} />
+                <Cell key={`cell-${index}`} fill={getBarColor(entry.price_relative)} style={{ cursor: onRouteClick ? "pointer" : undefined }} />
               ))}
             </Bar>
           </BarChart>

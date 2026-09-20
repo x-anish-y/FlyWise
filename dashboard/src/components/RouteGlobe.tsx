@@ -14,6 +14,7 @@ import {
   TrendingUp,
   TrendingDown,
   Info,
+  ArrowUpRight,
 } from "lucide-react";
 import { RouteRankItem } from "@/api-client";
 
@@ -60,12 +61,14 @@ interface RouteGlobeProps {
   rankingData: RouteRankItem[];
   windowCategory?: "cpi_compatible" | "analytical";
   theme?: "dark" | "light";
+  onRouteClick?: (routeId: string) => void;
 }
 
 export default function RouteGlobe({
   rankingData,
   windowCategory = "cpi_compatible",
   theme = "dark",
+  onRouteClick,
 }: RouteGlobeProps) {
   const isLight = theme === "light";
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
@@ -370,7 +373,10 @@ export default function RouteGlobe({
             if (arc) setActiveRoute(arc);
           }}
           onArcClick={(arc: any) => {
-            if (arc) setActiveRoute(arc);
+            if (arc) {
+              setActiveRoute(arc);
+              onRouteClick?.(arc.route_id);
+            }
           }}
           // Airport points
           pointsData={pointsData}
@@ -395,17 +401,22 @@ export default function RouteGlobe({
       {/* Active Route Popup Overlay Card (Requirement 4) */}
       {activeRoute && (
         <div
-          className={`absolute bottom-12 left-4 z-20 p-4 rounded-xl max-w-sm min-w-[260px] text-xs font-sans backdrop-blur-md animate-in fade-in slide-in-from-bottom-3 duration-200 ${
+          onClick={() => {
+            onRouteClick?.(activeRoute.route_id);
+          }}
+          className={`absolute bottom-12 left-4 z-20 p-4 rounded-xl max-w-sm min-w-[280px] text-xs font-sans backdrop-blur-md animate-in fade-in slide-in-from-bottom-3 duration-200 cursor-pointer transition-all hover:scale-[1.02] group ${
             isLight
-              ? "bg-[#FFFFFF]/95 border border-[#CFE3F7] shadow-[0_8px_30px_rgba(207,227,247,0.8)] text-[#0f172a]"
-              : "bg-[#151520]/95 border border-[#232336] shadow-2xl text-[#f8fafc]"
+              ? "bg-[#FFFFFF]/95 border border-[#CFE3F7] hover:border-[#0284c7] shadow-[0_8px_30px_rgba(207,227,247,0.8)] text-[#0f172a]"
+              : "bg-[#151520]/95 border border-[#232336] hover:border-[#38bdf8]/50 shadow-2xl text-[#f8fafc]"
           }`}
         >
           <div className={`flex items-center justify-between pb-2 mb-2 border-b ${isLight ? "border-[#CFE3F7]" : "border-[#232336]"}`}>
             <div className="flex items-center gap-2">
               <span
-                className={`w-6 h-6 rounded-lg flex items-center justify-center border ${
-                  isLight ? "bg-[#F0F9FF] border-[#BAE6FD]" : "bg-[#1b1b26] border-[#38bdf8]/30"
+                className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-colors ${
+                  isLight
+                    ? "bg-[#F0F9FF] border-[#BAE6FD] group-hover:bg-[#E0F2FE]"
+                    : "bg-[#1b1b26] border-[#38bdf8]/30 group-hover:border-[#38bdf8]"
                 }`}
               >
                 <Plane className="w-3.5 h-3.5 text-[#0284c7] transform -rotate-45" />
@@ -420,7 +431,11 @@ export default function RouteGlobe({
               </div>
             </div>
             <button
-              onClick={() => setActiveRoute(null)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveRoute(null);
+              }}
+              aria-label="Close route card"
               className={`text-xs px-1.5 py-0.5 rounded transition-colors ${
                 isLight ? "text-[#64748b] hover:text-[#0f172a] hover:bg-[#F0F9FF]" : "text-[#94a3b8] hover:text-[#f8fafc] hover:bg-[#232336]"
               }`}
@@ -498,6 +513,18 @@ export default function RouteGlobe({
                 Last Ingested: 18:00 IST
               </span>
               <span>{activeRoute.observations} sample flights</span>
+            </div>
+
+            {/* Click to open CTA */}
+            <div
+              className={`mt-1 pt-2 border-t flex items-center justify-between text-[11px] font-mono font-medium transition-colors ${
+                isLight
+                  ? "border-[#CFE3F7] text-[#0284c7] group-hover:text-[#0369a1]"
+                  : "border-[#1f1f2a] text-[#38bdf8] group-hover:text-[#7dd3fc]"
+              }`}
+            >
+              <span>Click to view route drill-down</span>
+              <ArrowUpRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </div>
           </div>
         </div>

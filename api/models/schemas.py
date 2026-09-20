@@ -95,6 +95,27 @@ class RouteHistoryResponse(BaseModel):
     data: list[RouteIndexOut] = []
 
 
+class RouteSummaryResponse(BaseModel):
+    """Response for GET /routes/{route_id}/summary — stock-index-style snapshot."""
+    route_id: str
+    window_category: str
+    # Today's intraday metrics
+    today_open: Optional[float] = None
+    today_close: Optional[float] = None
+    today_high: Optional[float] = None
+    today_low: Optional[float] = None
+    today_change_value: Optional[float] = None
+    today_change_pct: Optional[float] = None
+    # All-time extremes across full recorded history
+    alltime_high: Optional[float] = None
+    alltime_high_date: Optional[date] = None
+    alltime_low: Optional[float] = None
+    alltime_low_date: Optional[date] = None
+    # Tracking metadata
+    tracking_since: Optional[date] = None
+    last_updated: Optional[datetime] = None
+
+
 # ---------------------------------------------------------------------------
 # Coverage / Confidence
 # ---------------------------------------------------------------------------
