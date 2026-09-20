@@ -234,7 +234,7 @@ export default function HighVolatilityCard({
             </span>
             <div className="text-[10px] text-[#64748B] font-mono mt-1 flex items-center justify-end gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
-              Ingested {data.ingestedAgo}
+              Live Ingestion Feed
             </div>
           </div>
         </div>

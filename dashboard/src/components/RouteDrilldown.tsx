@@ -49,23 +49,6 @@ const CITY: Record<string, string> = {
   AMD: "Ahmedabad",
 };
 
-/* ── TIME AGO FORMATTER ────────────────────────────────────────── */
-function formatTimeAgo(isoString?: string | null): string {
-  if (!isoString) return "";
-  try {
-    const diffMs = Date.now() - new Date(isoString).getTime();
-    if (isNaN(diffMs) || diffMs < 0) return "just now";
-    const mins = Math.floor(diffMs / 60000);
-    if (mins < 1) return "just now";
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
-  } catch {
-    return "";
-  }
-}
 
 /* ── DATE FORMATTER ────────────────────────────────────────────── */
 function formatDatePlain(dateStr?: string | null): string {
@@ -449,18 +432,6 @@ export default function RouteDrilldown({
                   >
                     {origin} → {destination}
                   </h2>
-                  {effectiveSummary?.last_updated && !isOutOfSeason && (
-                    <span
-                      className={`text-[11px] font-mono px-2 py-0.5 rounded-full flex items-center gap-1.5 border ${
-                        isLight
-                          ? "bg-[#F0F9FF] border-[#BAE6FD] text-[#0284c7]"
-                          : "bg-[#1b1b26] border-[#38bdf8]/20 text-[#38bdf8]"
-                      }`}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      updated {formatTimeAgo(effectiveSummary.last_updated)}
-                    </span>
-                  )}
                 </div>
                 <p
                   className={`text-xs ${
