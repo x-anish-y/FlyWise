@@ -1,6 +1,6 @@
 # ✈️ FlyWise (APIx) — Real-Time Airfare Price Index for India
 
-<div align="center">
+<div align="center"> 
 
 ![SIH 2026 Banner](https://img.shields.io/badge/SIH%202026-PS26056-FF6B35?style=for-the-badge&logo=target&logoColor=white)
 ![Ministry](https://img.shields.io/badge/Ministry-MoSPI%20%7C%20DIID-1E3A8A?style=for-the-badge&logo=government&logoColor=white)
