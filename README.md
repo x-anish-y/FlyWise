@@ -183,7 +183,9 @@ $$\text{Overall APIx}_t = \Big(W_{\text{dom}} \times \text{DAPIx}_t\Big) + \Big(
 ### 4.3 Constant-Quality Pricing via FSID
 Comparing basic hand-baggage-only unbundled fares against all-inclusive tickets with checked luggage produces false price volatility. FlyWise enforces strict **constant-quality matched-model pricing** through the **Flight Service Specification ID (`service_spec_id`)**:
 
-$$\text{FSID} = \texttt{\{route\_id\}-\{cabin\}-\{service\_type\}-T\{advance\_days\}-\{baggage\_bucket\}-\{fare\_tier\}}$$
+```text
+FSID = {route_id}-{cabin}-{service_type}-T{advance_days}-{baggage_bucket}-{fare_tier}
+```
 
 *Example*: `DEL-BOM-economy-nonstop-T21-15kg-standard`
 
@@ -206,7 +208,7 @@ When computing price relatives, an IndiGo *Saver* fare (`15kg-standard`) is **st
 ### 4.5 Composite Statistical Confidence Metric
 Every daily published index is accompanied by an auditable, composite **Statistical Confidence Score** ($\in [0, 1]$):
 
-$$\text{confidence\_score} = 0.40 \cdot \text{coverage\_score} + 0.35 \cdot \overline{\text{quality\_score}} + 0.25 \cdot \min\left(1.0, \frac{N_{\text{obs}}}{N_{\text{expected}}}\right)$$
+$$\text{Confidence Score} = 0.40 \cdot \text{Coverage Score} + 0.35 \cdot \overline{\text{Quality Score}} + 0.25 \cdot \min\left(1.0, \frac{N_{\text{obs}}}{N_{\text{expected}}}\right)$$
 
 - **Coverage Component (40%)**: Ratio of non-imputed slots to total expected slots.
 - **Data Quality Component (35%)**: Average quality score across observations (penalizing reconciliation errors and scraper warnings).
@@ -262,9 +264,9 @@ Missing Cell (Route r, Window w, Day t)
 - **The Pitfall**: Scraper parsing bugs or airline tariff glitches produce impossible fares (e.g., ₹250 on Delhi–Mumbai where airport taxes alone are ₹800).
 - **FlyWise Defense**:
   1. **Trailing Median Filter**: Flags and rejects any fare where:
-     $$\text{total\_fare\_inr} < 0.20 \times \text{trailing\_7\_day\_median}$$
+      $$\text{Total Fare (INR)} < 0.20 \times \text{Trailing 7-Day Median}$$
   2. **Component Reconciliation**: Validates that breakdown totals match within $\pm 1\%$:
-     $$\left|\frac{(\text{base\_fare} + \text{taxes} + \text{fees}) - \text{total\_fare}}{\text{total\_fare}}\right| \le 0.01$$
+      $$\left|\frac{(\text{Base Fare} + \text{Taxes} + \text{Fees}) - \text{Total Fare}}{\text{Total Fare}}\right| \le 0.01$$
 
 ---
 
