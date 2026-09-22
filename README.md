@@ -66,43 +66,49 @@ Civil aviation in India is one of the fastest-growing domestic transport markets
 ## 2. Platform Architecture & Data Pipeline
 
 ```mermaid
-flowchart TD
+graph TD
     subgraph S1["1. Live Market Collectors (18:00 IST Cadence)"]
-        BD["Bright Data SERP API<br/>(Google Flights)"]
+        BD["Bright Data SERP API (Google Flights)"]
         SC["Scrappa Backup API"]
-        PW["Playwright Direct Scraper<br/>(Stateless / Ephemeral Contexts)"]
+        PW["Playwright Direct Scraper (Stateless Contexts)"]
     end
 
-    subgraph S2["2. Ingestion & Quality Cleansing"]
-        NORM["Airport & Time Normalizer<br/>(IST Conversion / IATA Codes)"]
-        DEDUP["Codeshare Deduplicator<br/>(Min-Fare Key: Route + OpCarrier + Hour)"]
-        SPEC["FSID Service Spec Generator<br/>(Cabin + Baggage Bucket + Tier)"]
+    subgraph S2["2. Ingestion and Quality Cleansing"]
+        NORM["Airport and Time Normalizer (IST / IATA Codes)"]
+        DEDUP["Codeshare Deduplicator (Min-Fare Key)"]
+        SPEC["FSID Service Spec Generator (Cabin / Baggage / Tier)"]
     end
 
-    subgraph S3["3. Processing & Econometric Engine"]
-        FX["FBIL / ECB Daily FX Normalizer<br/>(Locked Benchmark Rates for AED / SGD)"]
-        QC["Glitch Fare & Component Filter<br/>(7-Day Median < 0.20x & ±1% Sum Check)"]
-        IMP["Deterministic 4-Tier Imputation Cascade<br/>(Neighbor → Trend → Sector Peer → Carryover)"]
-        JEV["Jevons Geometric Mean Engine<br/>(Elementary Route Indices p_t / p_0)"]
-        AGG["Young-Type Aggregator<br/>(DAPIx 70% + IAPIx 30% → Overall APIx)"]
-        CONF["Composite Confidence & Coverage Engine"]
+    subgraph S3["3. Processing and Econometric Engine"]
+        FX["FBIL / ECB Daily FX Normalizer (AED / SGD)"]
+        QC["Glitch Fare and Component Filter"]
+        IMP["Deterministic 4-Tier Imputation Cascade"]
+        JEV["Jevons Geometric Mean Engine"]
+        AGG["Young-Type Aggregator (70% Dom / 30% Intl)"]
+        CONF["Composite Confidence and Coverage Engine"]
     end
 
-    subgraph S4["4. Persistence Layer (Neon PostgreSQL)"]
-        DB[("Neon Serverless Postgres<br/>(observations, route_index, national_index, reference_prices)")]
+    subgraph S4["4. Persistence Layer"]
+        DB[("Neon Serverless PostgreSQL Database")]
     end
 
-    subgraph S5["5. Presentation & Policy API"]
-        FASTAPI["FastAPI Production Backend<br/>(Swagger / Redoc / High-Throughput Engine)"]
-        DASH["Next.js 16 + React 19 Dashboard<br/>(3D WebGL Globe Radar, Recharts, Framer Motion)"]
-        POLICY["Institutional Policy Endpoints<br/>(/policy/apix.csv, /policy/routes.json with X-API-Key)"]
+    subgraph S5["5. Presentation and Policy API"]
+        FASTAPI["FastAPI Production Backend"]
+        DASH["Next.js 16 + React 19 Dashboard (3D WebGL Globe)"]
+        POLICY["Institutional Policy Endpoints (CSV / JSON)"]
     end
 
     BD --> NORM
     SC --> NORM
     PW --> NORM
-    NORM --> DEDUP --> SPEC
-    SPEC --> FX --> QC --> IMP --> JEV --> AGG --> CONF
+    NORM --> DEDUP
+    DEDUP --> SPEC
+    SPEC --> FX
+    FX --> QC
+    QC --> IMP
+    IMP --> JEV
+    JEV --> AGG
+    AGG --> CONF
     CONF --> DB
     DB --> FASTAPI
     FASTAPI --> DASH
