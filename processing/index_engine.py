@@ -562,35 +562,126 @@ def _compute_coverage_and_confidence(
 
     coverage_score:  fraction of active routes that have at least one
                      route_index entry today.
-    confidence_score: weighted average of per-route (non-imputed / total)
-                      observation ratios.
+
+    confidence_score:  COMPOSITE 0–1 metric reflecting how trustworthy
+        today's APIx number is.  Computed as a weighted average of three
+        independent signals:
+
+        ┌────────────────────────┬────────┬──────────────────────────────────┐
+        │ Component              │ Weight │ Rationale                        │
+        ├────────────────────────┼────────┼──────────────────────────────────┤
+        │ 1. Coverage component  │  0.40  │ If many routes are missing       │
+        │    (coverage_score)    │        │ from the index, the national     │
+        │                       │        │ aggregate is structurally         │
+        │                       │        │ unreliable regardless of quality. │
+        ├────────────────────────┼────────┼──────────────────────────────────┤
+        │ 2. Quality component   │  0.35  │ Average quality_score across     │
+        │    (avg quality_score) │        │ today's observations.  Low       │
+        │                       │        │ quality ⇒ reconciliation         │
+        │                       │        │ failures, stale cache, or        │
+        │                       │        │ untrusted sources.  Capped at    │
+        │                       │        │ 1.0.  Falls back to the non-     │
+        │                       │        │ imputed ratio when quality_score │
+        │                       │        │ has not been computed yet (all 0) │
+        │                       │        │ so early-day runs don't show 0%. │
+        ├────────────────────────┼────────┼──────────────────────────────────┤
+        │ 3. Sample adequacy     │  0.25  │ n_observations / expected_obs.   │
+        │    (n_obs / expected)  │        │ Thin samples are less reliable   │
+        │                       │        │ even if coverage and quality are  │
+        │                       │        │ high.  Expected obs = n_active   │
+        │                       │        │ routes × n_advance_windows × 4   │
+        │                       │        │ (target: ≥4 fares per cell).     │
+        │                       │        │ Capped at 1.0.                   │
+        └────────────────────────┴────────┴──────────────────────────────────┘
+
+        confidence_score = 0.40 × coverage
+                         + 0.35 × quality_component
+                         + 0.25 × min(n_obs / expected, 1.0)
+
+        Design note: these weights mirror the quality_score weighting
+        philosophy in quality_fx_engine.py — the most structurally
+        important factor (coverage) gets the highest weight, while
+        quantity-based heuristics get less to avoid over-penalizing
+        naturally thin windows (e.g. T+60 international).
     """
     routes_with_index = {i["route_id"] for i in route_indices}
     active_route_ids = {r["route_id"] for r in active_routes}
 
-    # Coverage: what fraction of active routes have index values?
+    # ── Component 1: Coverage ────────────────────────────────────────
+    # What fraction of active routes have at least one route_index entry?
     if active_route_ids:
         coverage = len(routes_with_index & active_route_ids) / len(active_route_ids)
     else:
         coverage = 0.0
 
-    # Confidence: what fraction of today's observations are non-imputed?
-    query = """
+    # ── Component 2: Quality ─────────────────────────────────────────
+    # Average quality_score of today's observations that fed into route indices.
+    # quality_score is computed by quality_fx_engine.py (range 0–1).
+    # If quality_fx hasn't run yet (all quality_score = 0 or NULL), fall
+    # back to the non-imputed ratio as a reasonable proxy.
+    quality_query = """
     SELECT
+        AVG(COALESCE(quality_score, 0))   AS avg_quality,
+        COUNT(*) FILTER (WHERE quality_score IS NOT NULL AND quality_score > 0)
+                                          AS n_with_quality,
         COUNT(*) FILTER (WHERE is_imputed = FALSE) AS real_count,
-        COUNT(*) AS total_count
+        COUNT(*)                          AS total_count
     FROM observations
     WHERE collection_timestamp::date = %s
       AND total_fare_inr IS NOT NULL;
     """
     with conn.cursor() as cur:
-        cur.execute(query, (target_date,))
+        cur.execute(quality_query, (target_date,))
         row = cur.fetchone()
 
-    if row and row[1] > 0:
-        confidence = row[0] / row[1]
+    if row and row[3] > 0:
+        avg_quality = float(row[0]) if row[0] else 0.0
+        n_with_quality = int(row[1])
+        real_count = int(row[2])
+        total_count = int(row[3])
+
+        # If quality_fx has processed observations (>50% have quality_score > 0),
+        # use the average quality_score.  Otherwise, fall back to real/total ratio
+        # so that early-day runs before quality_fx don't show 0% confidence.
+        if n_with_quality > total_count * 0.5:
+            quality_component = min(avg_quality, 1.0)
+        else:
+            # Fallback: fraction of non-imputed observations
+            quality_component = real_count / total_count
     else:
-        confidence = 0.0
+        quality_component = 0.0
+        total_count = 0
+
+    # ── Component 3: Sample adequacy ─────────────────────────────────
+    # Expected observations = active_routes × advance_windows × 4 fares/cell.
+    # The "4 fares per cell" target is a reasonable minimum for a stable
+    # Jevons geometric mean (too few observations → high variance).
+    # We cap at 1.0 because exceeding the target doesn't increase confidence.
+    n_advance_windows = 7  # T+1, T+7, T+15, T+21, T+30, T+45, T+60
+    fares_per_cell = 4     # Target: ≥4 fares per (route, window) cell
+    expected_obs = max(len(active_route_ids) * n_advance_windows * fares_per_cell, 1)
+    sample_adequacy = min(total_count / expected_obs, 1.0)
+
+    # ── Composite confidence_score ───────────────────────────────────
+    W_COVERAGE = 0.40
+    W_QUALITY  = 0.35
+    W_SAMPLE   = 0.25
+
+    confidence = (
+        W_COVERAGE * coverage
+        + W_QUALITY * quality_component
+        + W_SAMPLE * sample_adequacy
+    )
+
+    logger.info(
+        "Confidence components: coverage=%.3f (w=%.2f), "
+        "quality=%.3f (w=%.2f), sample_adequacy=%.3f (w=%.2f) => "
+        "confidence=%.4f",
+        coverage, W_COVERAGE,
+        quality_component, W_QUALITY,
+        sample_adequacy, W_SAMPLE,
+        confidence,
+    )
 
     return round(coverage, 4), round(confidence, 4)
 
