@@ -372,7 +372,7 @@ FlyWise/
 │   ├── bright_data_adapter.py   # Google Flights SERP API integration
 │   ├── scrappa_adapter.py       # Scrappa secondary backup adapter
 │   ├── ota_scraper.py           # Ephemeral Playwright direct browser scraper
-│   └── render_cron_entrypoint.py# Scheduled 18:00 IST collection orchestrator
+│   └── render_cron_entrypoint.py # Scheduled 18:00 IST collection orchestrator
 ├── ingestion/                   # Raw payload cleansing & normalization
 │   ├── parse_google_flights.py  # SERP payload extractor
 │   ├── dedup_observations.py    # Codeshare deduplication engine
