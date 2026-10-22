@@ -17,8 +17,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+import random
 import re
 import sys
+import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -247,7 +249,11 @@ def build_google_flights_url(
 # 2. Bright Data SERP API call
 # ---------------------------------------------------------------------------
 
-def fetch_raw_html(url: str) -> str:
+def fetch_raw_html(
+    url: str,
+    route_id: str = "",
+    advance_days: int = 0,
+) -> str:
     """Send a Google Flights URL to Bright Data's SERP API and return raw HTML.
 
     Uses format="raw" because Bright Data does NOT support JSON output
@@ -277,44 +283,99 @@ def fetch_raw_html(url: str) -> str:
         },
     }
 
-    logger.info("Sending request to Bright Data SERP API for URL: %s", url[:120])
-    response = requests.post(
-        BRIGHT_DATA_ENDPOINT,
-        headers=headers,
-        json=payload,
-        timeout=90,  # Generous timeout — Flights pages can be slow
-    )
+    # Timeouts: default (10, 60) (connect, read), overridable via env
+    connect_to = float(os.getenv("BD_CONNECT_TIMEOUT", "10"))
+    read_to = float(os.getenv("BD_READ_TIMEOUT", os.getenv("BD_TIMEOUT", "60")))
+    timeout = (connect_to, read_to)
 
-    # ---- DIAGNOSTIC LOGGING (temporary) ----
-    print("\n" + "=" * 70)
-    print("DIAGNOSTIC: Bright Data request/response dump")
-    print("=" * 70)
-    print(f"\n[FULL REQUEST PAYLOAD] (complete dict, no truncation):")
-    import json as _json_diag
-    print(_json_diag.dumps(payload, indent=2))
-    print(f"\n[PAYLOAD KEYS]: {list(payload.keys())}")
-    print(f"[Has 'data_format' key?]: {'data_format' in payload}")
-    print(f"\n[RESPONSE STATUS CODE]: {response.status_code}")
-    print(f"\n[RESPONSE HEADERS] (full dict):")
-    for k, v in response.headers.items():
-        print(f"  {k}: {v}")
-    print(f"\n[Content-Type]:   {response.headers.get('Content-Type', '(missing)')}")
-    print(f"[Content-Length]: {response.headers.get('Content-Length', '(missing)')}")
-    print(f"\n[RESPONSE BODY] ({len(response.text)} bytes total, first 500 chars):")
-    print(response.text[:500] if len(response.text) > 500 else response.text)
-    print("=" * 70 + "\n")
-    # ---- END DIAGNOSTIC LOGGING ----
+    tag = f"{route_id} | T+{advance_days}" if route_id else "Bright Data"
+    max_retries = 1
 
-    response.raise_for_status()
+    for attempt in range(max_retries + 1):
+        req_start = time.monotonic()
+        try:
+            logger.info(
+                "[%s] Sending request (attempt %d/%d) to Bright Data SERP API: %s",
+                tag, attempt + 1, max_retries + 1, url[:120],
+            )
+            response = requests.post(
+                BRIGHT_DATA_ENDPOINT,
+                headers=headers,
+                json=payload,
+                timeout=timeout,
+            )
+            elapsed = time.monotonic() - req_start
+            logger.info(
+                "[%s] Bright Data request completed in %.2fs (HTTP %d)",
+                tag, elapsed, response.status_code,
+            )
 
-    html = response.text
-    if not html or len(html) < 500:
-        raise ValueError(
-            f"Bright Data returned unexpectedly short response ({len(html)} bytes). "
-            "Possible block or empty page."
-        )
+            # Diagnostic dump gated behind BD_DEBUG=1
+            if os.getenv("BD_DEBUG") == "1":
+                print("\n" + "=" * 70)
+                print("DIAGNOSTIC: Bright Data request/response dump")
+                print("=" * 70)
+                print(f"\n[FULL REQUEST PAYLOAD] (complete dict, no truncation):")
+                import json as _json_diag
+                print(_json_diag.dumps(payload, indent=2))
+                print(f"\n[PAYLOAD KEYS]: {list(payload.keys())}")
+                print(f"[Has 'data_format' key?]: {'data_format' in payload}")
+                print(f"\n[RESPONSE STATUS CODE]: {response.status_code}")
+                print(f"\n[RESPONSE HEADERS] (full dict):")
+                for k, v in response.headers.items():
+                    print(f"  {k}: {v}")
+                print(f"\n[Content-Type]:   {response.headers.get('Content-Type', '(missing)')}")
+                print(f"[Content-Length]: {response.headers.get('Content-Length', '(missing)')}")
+                print(f"\n[RESPONSE BODY] ({len(response.text)} bytes total, first 500 chars):")
+                print(response.text[:500] if len(response.text) > 500 else response.text)
+                print("=" * 70 + "\n")
 
-    return html
+            # Check for retryable HTTP status: 429 or 5xx
+            if response.status_code == 429 or 500 <= response.status_code < 600:
+                if attempt < max_retries:
+                    sleep_sec = random.uniform(3.0, 5.0)
+                    logger.warning(
+                        "[%s] Bright Data returned HTTP %d. Retrying in %.1fs...",
+                        tag, response.status_code, sleep_sec,
+                    )
+                    time.sleep(sleep_sec)
+                    continue
+
+            # Check for 4xx errors - never retry on 4xx auth or IP errors
+            response.raise_for_status()
+
+            html = response.text
+            if not html or len(html) < 500:
+                raise ValueError(
+                    f"Bright Data returned unexpectedly short response ({len(html)} bytes). "
+                    "Possible block or empty page."
+                )
+
+            return html
+
+        except (requests.Timeout, requests.ConnectionError) as e:
+            elapsed = time.monotonic() - req_start
+            logger.warning(
+                "[%s] Bright Data request failed after %.2fs with %s: %s",
+                tag, elapsed, type(e).__name__, e,
+            )
+            if attempt < max_retries:
+                sleep_sec = random.uniform(3.0, 5.0)
+                logger.warning(
+                    "[%s] Retrying once in %.1fs after network error...",
+                    tag, sleep_sec,
+                )
+                time.sleep(sleep_sec)
+                continue
+            raise
+        except requests.HTTPError as e:
+            # 4xx client errors (401, 403, 400, etc.) are never retried
+            elapsed = time.monotonic() - req_start
+            logger.error(
+                "[%s] Bright Data HTTP error after %.2fs: %s (status %s) - not retrying",
+                tag, elapsed, e, getattr(response, "status_code", "unknown"),
+            )
+            raise
 
 
 # ---------------------------------------------------------------------------
@@ -640,7 +701,7 @@ def fetch_fares(
     """
     route_id = f"{origin}-{destination}"
     timestamp = datetime.now(UTC)
-    run_id = f"bd_{route_id}_{timestamp.strftime('%Y%m%d_%H%M%S')}"
+    run_id = f"bd_{route_id}_T{advance_days}_{timestamp.strftime('%Y%m%d_%H%M%S')}"
     is_international = route_id in INTERNATIONAL_ROUTES
     original_currency = ROUTE_CURRENCY.get(route_id, "INR")
 
@@ -653,8 +714,10 @@ def fetch_fares(
         "run_id": run_id,
         "observations": [],
         "errors": [],
+        "elapsed_seconds": 0.0,
     }
 
+    fetch_start = time.monotonic()
     try:
         # Step 1: Build the Google Flights URL (local, no network)
         url = build_google_flights_url(
@@ -663,11 +726,11 @@ def fetch_fares(
             travel_date=travel_date,
             currency=original_currency,
         )
-        logger.info("[%s] Built Google Flights URL for %s T+%d", run_id, route_id, advance_days)
+        logger.info("[%s | T+%d] Built Google Flights URL for %s", route_id, advance_days, route_id)
 
         # Step 2: Send to Bright Data SERP API (network call)
-        html = fetch_raw_html(url)
-        logger.info("[%s] Received %d bytes of HTML from Bright Data", run_id, len(html))
+        html = fetch_raw_html(url, route_id=route_id, advance_days=advance_days)
+        logger.info("[%s | T+%d] Received %d bytes of HTML from Bright Data", route_id, advance_days, len(html))
 
         # Step 3: Parse the HTML into structured observations
         observations = parse_flights_from_html(html, route_id, original_currency)
@@ -688,25 +751,30 @@ def fetch_fares(
             })
 
         result["observations"] = observations
+        result["elapsed_seconds"] = round(time.monotonic() - fetch_start, 2)
 
     except requests.Timeout as e:
+        result["elapsed_seconds"] = round(time.monotonic() - fetch_start, 2)
         error_msg = f"Bright Data timeout for {route_id} T+{advance_days}: {e}"
-        logger.error(error_msg)
+        logger.error("[%s | T+%d] %s", route_id, advance_days, error_msg)
         result["errors"].append(error_msg)
 
     except requests.RequestException as e:
+        result["elapsed_seconds"] = round(time.monotonic() - fetch_start, 2)
         error_msg = f"Bright Data HTTP error for {route_id} T+{advance_days}: {e}"
-        logger.error(error_msg)
+        logger.error("[%s | T+%d] %s", route_id, advance_days, error_msg)
         result["errors"].append(error_msg)
 
     except ValueError as e:
+        result["elapsed_seconds"] = round(time.monotonic() - fetch_start, 2)
         error_msg = f"Parse error for {route_id} T+{advance_days}: {e}"
-        logger.error(error_msg)
+        logger.error("[%s | T+%d] %s", route_id, advance_days, error_msg)
         result["errors"].append(error_msg)
 
     except Exception as e:
+        result["elapsed_seconds"] = round(time.monotonic() - fetch_start, 2)
         error_msg = f"Unexpected error for {route_id} T+{advance_days}: {type(e).__name__}: {e}"
-        logger.error(error_msg)
+        logger.error("[%s | T+%d] %s", route_id, advance_days, error_msg)
         result["errors"].append(error_msg)
 
     return result

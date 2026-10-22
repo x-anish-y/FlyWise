@@ -16,7 +16,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import random
 import sys
+import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -75,6 +77,7 @@ def fetch_flights_json(
     destination: str,
     travel_date: str,
     currency: str = "INR",
+    advance_days: int = 0,
 ) -> dict[str, Any]:
     """Call Scrappa's One-Way Flight Search API and return the JSON response.
 
@@ -83,6 +86,7 @@ def fetch_flights_json(
         destination: 3-letter IATA airport code (e.g. "BOM").
         travel_date: ISO date string "YYYY-MM-DD".
         currency: Currency code for the search results.
+        advance_days: Lead-time window in days.
 
     Returns:
         Parsed JSON dict with "flights" and "search_metadata" keys.
@@ -96,6 +100,9 @@ def fetch_flights_json(
             "SCRAPPA_API_KEY is not set. "
             "Set it in config/.env or as an environment variable."
         )
+
+    route_id = f"{origin}-{destination}"
+    tag = f"{route_id} | T+{advance_days}" if advance_days else route_id
 
     params: dict[str, str | int] = {
         "origin": origin,
@@ -114,32 +121,82 @@ def fetch_flights_json(
         "Accept": "application/json",
     }
 
-    logger.info(
-        "Sending request to Scrappa Flights API: %s -> %s on %s (%s)",
-        origin, destination, travel_date, currency,
-    )
+    # Timeouts: default (10, 60) (connect, read), overridable via env
+    connect_to = float(os.getenv("SCRAPPA_CONNECT_TIMEOUT", "10"))
+    read_to = float(os.getenv("SCRAPPA_READ_TIMEOUT", os.getenv("SCRAPPA_TIMEOUT", "60")))
+    timeout = (connect_to, read_to)
 
-    response = requests.get(
-        SCRAPPA_ENDPOINT,
-        params=params,
-        headers=headers,
-        timeout=90,
-    )
-    response.raise_for_status()
+    max_retries = 1
 
-    data = response.json()
-    if not isinstance(data, dict):
-        raise ValueError(
-            f"Scrappa returned unexpected response type: {type(data).__name__}"
-        )
+    for attempt in range(max_retries + 1):
+        req_start = time.monotonic()
+        try:
+            logger.info(
+                "[%s] Sending request (attempt %d/%d) to Scrappa Flights API: %s -> %s on %s (%s)",
+                tag, attempt + 1, max_retries + 1, origin, destination, travel_date, currency,
+            )
+            response = requests.get(
+                SCRAPPA_ENDPOINT,
+                params=params,
+                headers=headers,
+                timeout=timeout,
+            )
+            elapsed = time.monotonic() - req_start
+            logger.info(
+                "[%s] Scrappa request completed in %.2fs (HTTP %d)",
+                tag, elapsed, response.status_code,
+            )
 
-    flights = data.get("flights", [])
-    logger.info(
-        "Scrappa returned %d flight(s) for %s-%s on %s",
-        len(flights), origin, destination, travel_date,
-    )
+            # Check for retryable HTTP status: 429 or 5xx
+            if response.status_code == 429 or 500 <= response.status_code < 600:
+                if attempt < max_retries:
+                    sleep_sec = random.uniform(3.0, 5.0)
+                    logger.warning(
+                        "[%s] Scrappa returned HTTP %d. Retrying in %.1fs...",
+                        tag, response.status_code, sleep_sec,
+                    )
+                    time.sleep(sleep_sec)
+                    continue
 
-    return data
+            # Check for 4xx errors - never retry on 4xx auth or IP errors
+            response.raise_for_status()
+
+            data = response.json()
+            if not isinstance(data, dict):
+                raise ValueError(
+                    f"Scrappa returned unexpected response type: {type(data).__name__}"
+                )
+
+            flights = data.get("flights", [])
+            logger.info(
+                "[%s] Scrappa returned %d flight(s) for %s on %s",
+                tag, len(flights), route_id, travel_date,
+            )
+
+            return data
+
+        except (requests.Timeout, requests.ConnectionError) as e:
+            elapsed = time.monotonic() - req_start
+            logger.warning(
+                "[%s] Scrappa request failed after %.2fs with %s: %s",
+                tag, elapsed, type(e).__name__, e,
+            )
+            if attempt < max_retries:
+                sleep_sec = random.uniform(3.0, 5.0)
+                logger.warning(
+                    "[%s] Retrying once in %.1fs after network error...",
+                    tag, sleep_sec,
+                )
+                time.sleep(sleep_sec)
+                continue
+            raise
+        except requests.HTTPError as e:
+            elapsed = time.monotonic() - req_start
+            logger.error(
+                "[%s] Scrappa HTTP error after %.2fs: %s (status %s) - not retrying",
+                tag, elapsed, e, getattr(response, "status_code", "unknown"),
+            )
+            raise
 
 
 # ---------------------------------------------------------------------------
@@ -282,7 +339,7 @@ def fetch_fares(
     """
     route_id = f"{origin}-{destination}"
     timestamp = datetime.now(UTC)
-    run_id = f"sc_{route_id}_{timestamp.strftime('%Y%m%d_%H%M%S')}"
+    run_id = f"sc_{route_id}_T{advance_days}_{timestamp.strftime('%Y%m%d_%H%M%S')}"
     original_currency = ROUTE_CURRENCY.get(route_id, "INR")
 
     result: dict[str, Any] = {
@@ -294,8 +351,10 @@ def fetch_fares(
         "run_id": run_id,
         "observations": [],
         "errors": [],
+        "elapsed_seconds": 0.0,
     }
 
+    fetch_start = time.monotonic()
     try:
         # Step 1: Call Scrappa API (returns structured JSON)
         data = fetch_flights_json(
@@ -303,11 +362,16 @@ def fetch_fares(
             destination=destination,
             travel_date=travel_date,
             currency=original_currency,
+            advance_days=advance_days,
         )
-        logger.info("[%s] Received Scrappa response for %s T+%d", run_id, route_id, advance_days)
+        logger.info("[%s | T+%d] Received Scrappa response for %s", route_id, advance_days, route_id)
 
         # Step 2: Map the JSON to our observation schema
         observations = parse_flights_from_json(data, route_id, original_currency)
+        logger.info(
+            "[%s | T+%d] Parsed %d direct flight(s) from Scrappa JSON",
+            route_id, advance_days, len(observations),
+        )
 
         # Enrich each observation with collection metadata
         for obs in observations:
@@ -325,25 +389,30 @@ def fetch_fares(
             })
 
         result["observations"] = observations
+        result["elapsed_seconds"] = round(time.monotonic() - fetch_start, 2)
 
     except requests.Timeout as e:
+        result["elapsed_seconds"] = round(time.monotonic() - fetch_start, 2)
         error_msg = f"Scrappa timeout for {route_id} T+{advance_days}: {e}"
-        logger.error(error_msg)
+        logger.error("[%s | T+%d] %s", route_id, advance_days, error_msg)
         result["errors"].append(error_msg)
 
     except requests.RequestException as e:
+        result["elapsed_seconds"] = round(time.monotonic() - fetch_start, 2)
         error_msg = f"Scrappa HTTP error for {route_id} T+{advance_days}: {e}"
-        logger.error(error_msg)
+        logger.error("[%s | T+%d] %s", route_id, advance_days, error_msg)
         result["errors"].append(error_msg)
 
     except ValueError as e:
+        result["elapsed_seconds"] = round(time.monotonic() - fetch_start, 2)
         error_msg = f"Parse error for {route_id} T+{advance_days}: {e}"
-        logger.error(error_msg)
+        logger.error("[%s | T+%d] %s", route_id, advance_days, error_msg)
         result["errors"].append(error_msg)
 
     except Exception as e:
+        result["elapsed_seconds"] = round(time.monotonic() - fetch_start, 2)
         error_msg = f"Unexpected error for {route_id} T+{advance_days}: {type(e).__name__}: {e}"
-        logger.error(error_msg)
+        logger.error("[%s | T+%d] %s", route_id, advance_days, error_msg)
         result["errors"].append(error_msg)
 
     return result

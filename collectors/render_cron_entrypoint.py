@@ -28,10 +28,12 @@ Execution Workflow:
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import logging
 import os
 import sys
+import time
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
@@ -188,7 +190,7 @@ def process_route_window(
     """Execute primary (Bright Data) -> fallback (Scrappa) collection for a route/window.
 
     Returns:
-        Summary dict containing status, observations_count, source_used, and errors.
+        Summary dict containing status, observations_count, source_used, errors, and source_attempts.
     """
     route_id = f"{origin}-{destination}"
     res_summary: dict[str, Any] = {
@@ -200,6 +202,7 @@ def process_route_window(
         "observations_count": 0,
         "source_used": "none",
         "errors": [],
+        "source_attempts": [],
     }
 
     logger.info(
@@ -210,8 +213,7 @@ def process_route_window(
     # ------------------------------------------------------------------
     # 1. Primary Attempt: Bright Data
     # ------------------------------------------------------------------
-    bd_result: Optional[dict[str, Any]] = None
-    bd_success = False
+    bd_start = time.monotonic()
     try:
         bd_result = bd_fetch_fares(
             origin=origin,
@@ -219,34 +221,50 @@ def process_route_window(
             travel_date=travel_date,
             advance_days=advance_days,
         )
+        bd_latency = bd_result.get("elapsed_seconds", round(time.monotonic() - bd_start, 2))
         bd_obs = bd_result.get("observations", [])
         bd_errors = bd_result.get("errors", [])
 
         if bd_obs and len(bd_obs) > 0 and not bd_errors:
-            bd_success = True
             saved_path = bd_save_raw_output(bd_result)
             logger.info(
-                "[%s | T+%d] Bright Data SUCCESS: %d observations collected -> %s",
-                route_id, advance_days, len(bd_obs), saved_path,
+                "[%s | T+%d] Bright Data SUCCESS (%.2fs): %d observations collected -> %s",
+                route_id, advance_days, bd_latency, len(bd_obs), saved_path,
             )
             res_summary["status"] = "SUCCESS"
             res_summary["observations_count"] = len(bd_obs)
             res_summary["source_used"] = "bright_data"
+            res_summary["source_attempts"].append({
+                "source": "bright_data",
+                "success": True,
+                "latency": bd_latency,
+            })
             return res_summary
         else:
             err_details = "; ".join(bd_errors) if bd_errors else "0 observations extracted"
             logger.warning(
-                "[%s | T+%d] Bright Data produced no valid observations: %s",
-                route_id, advance_days, err_details,
+                "[%s | T+%d] Bright Data produced no valid observations (%.2fs): %s",
+                route_id, advance_days, bd_latency, err_details,
             )
             res_summary["errors"].append(f"Bright Data: {err_details}")
+            res_summary["source_attempts"].append({
+                "source": "bright_data",
+                "success": False,
+                "latency": bd_latency,
+            })
 
     except Exception as e:
+        bd_latency = round(time.monotonic() - bd_start, 2)
         logger.warning(
-            "[%s | T+%d] Bright Data exception: %s: %s",
-            route_id, advance_days, type(e).__name__, e,
+            "[%s | T+%d] Bright Data exception (%.2fs): %s: %s",
+            route_id, advance_days, bd_latency, type(e).__name__, e,
         )
         res_summary["errors"].append(f"Bright Data Exception: {type(e).__name__}: {e}")
+        res_summary["source_attempts"].append({
+            "source": "bright_data",
+            "success": False,
+            "latency": bd_latency,
+        })
 
     # ------------------------------------------------------------------
     # 2. Fallback Attempt: Scrappa Google Flights API
@@ -255,7 +273,7 @@ def process_route_window(
         "[%s | T+%d] Falling back to secondary collector (Scrappa Google Flights API)",
         route_id, advance_days,
     )
-
+    sc_start = time.monotonic()
     try:
         sc_result = sc_fetch_fares(
             origin=origin,
@@ -263,33 +281,50 @@ def process_route_window(
             travel_date=travel_date,
             advance_days=advance_days,
         )
+        sc_latency = sc_result.get("elapsed_seconds", round(time.monotonic() - sc_start, 2))
         sc_obs = sc_result.get("observations", [])
         sc_errors = sc_result.get("errors", [])
 
         if sc_obs and len(sc_obs) > 0 and not sc_errors:
             saved_path = sc_save_raw_output(sc_result)
             logger.info(
-                "[%s | T+%d] Scrappa FALLBACK SUCCESS: %d observations collected -> %s",
-                route_id, advance_days, len(sc_obs), saved_path,
+                "[%s | T+%d] Scrappa FALLBACK SUCCESS (%.2fs): %d observations collected -> %s",
+                route_id, advance_days, sc_latency, len(sc_obs), saved_path,
             )
             res_summary["status"] = "SUCCESS"
             res_summary["observations_count"] = len(sc_obs)
             res_summary["source_used"] = "scrappa"
+            res_summary["source_attempts"].append({
+                "source": "scrappa",
+                "success": True,
+                "latency": sc_latency,
+            })
             return res_summary
         else:
             err_details = "; ".join(sc_errors) if sc_errors else "0 observations returned"
             logger.error(
-                "[%s | T+%d] Scrappa fallback FAILED: %s",
-                route_id, advance_days, err_details,
+                "[%s | T+%d] Scrappa fallback FAILED (%.2fs): %s",
+                route_id, advance_days, sc_latency, err_details,
             )
             res_summary["errors"].append(f"Scrappa: {err_details}")
+            res_summary["source_attempts"].append({
+                "source": "scrappa",
+                "success": False,
+                "latency": sc_latency,
+            })
 
     except Exception as e:
+        sc_latency = round(time.monotonic() - sc_start, 2)
         logger.error(
-            "[%s | T+%d] Scrappa fallback exception: %s: %s",
-            route_id, advance_days, type(e).__name__, e,
+            "[%s | T+%d] Scrappa fallback exception (%.2fs): %s: %s",
+            route_id, advance_days, sc_latency, type(e).__name__, e,
         )
         res_summary["errors"].append(f"Scrappa Exception: {type(e).__name__}: {e}")
+        res_summary["source_attempts"].append({
+            "source": "scrappa",
+            "success": False,
+            "latency": sc_latency,
+        })
 
     # ------------------------------------------------------------------
     # 3. Both Failed: Log and skip (Zero data fabrication)
@@ -320,6 +355,7 @@ def process_ota_scrape(
         "observations_count": 0,
         "source_used": "ota_playwright",
         "errors": [],
+        "source_attempts": [],
     }
 
     logger.info(
@@ -327,6 +363,7 @@ def process_ota_scrape(
         route_id, advance_days, travel_date,
     )
 
+    t0_ota = time.monotonic()
     try:
         ota_result = ota_fetch_fares(
             origin=origin,
@@ -334,32 +371,49 @@ def process_ota_scrape(
             travel_date=travel_date,
             advance_days=advance_days,
         )
+        ota_latency = round(time.monotonic() - t0_ota, 2)
         obs = ota_result.get("observations", [])
         errs = ota_result.get("errors", [])
 
         if obs and len(obs) > 0:
             saved_path = ota_save_raw_output(ota_result)
             logger.info(
-                "[OTA Scraper | %s | T+%d] SUCCESS: %d observations collected -> %s",
-                route_id, advance_days, len(obs), saved_path,
+                "[OTA Scraper | %s | T+%d] SUCCESS (%.2fs): %d observations collected -> %s",
+                route_id, advance_days, ota_latency, len(obs), saved_path,
             )
             res_summary["status"] = "SUCCESS"
             res_summary["observations_count"] = len(obs)
             res_summary["errors"] = errs
+            res_summary["source_attempts"].append({
+                "source": "ota_playwright",
+                "success": True,
+                "latency": ota_latency,
+            })
         else:
             err_details = "; ".join(errs) if errs else "0 observations found"
             logger.warning(
-                "[OTA Scraper | %s | T+%d] Failed to collect observations: %s",
-                route_id, advance_days, err_details,
+                "[OTA Scraper | %s | T+%d] Failed to collect observations (%.2fs): %s",
+                route_id, advance_days, ota_latency, err_details,
             )
             res_summary["errors"].append(err_details)
+            res_summary["source_attempts"].append({
+                "source": "ota_playwright",
+                "success": False,
+                "latency": ota_latency,
+            })
 
     except Exception as e:
+        ota_latency = round(time.monotonic() - t0_ota, 2)
         logger.error(
-            "[OTA Scraper | %s | T+%d] Unexpected exception: %s: %s",
-            route_id, advance_days, type(e).__name__, e,
+            "[OTA Scraper | %s | T+%d] Unexpected exception (%.2fs): %s: %s",
+            route_id, advance_days, ota_latency, type(e).__name__, e,
         )
         res_summary["errors"].append(f"{type(e).__name__}: {e}")
+        res_summary["source_attempts"].append({
+            "source": "ota_playwright",
+            "success": False,
+            "latency": ota_latency,
+        })
 
     return res_summary
 
@@ -374,7 +428,11 @@ def run_collection_cycle(
     skip_ota: bool = False,
     skip_ingest: bool = False,
 ) -> dict[str, Any]:
-    """Execute one complete 4-hour collection cycle across all configured routes.
+    """Execute one complete collection cycle across all configured routes.
+
+    Runs (route, window) collection tasks in parallel using ThreadPoolExecutor
+    bounded by COLLECT_MAX_WORKERS (default 5) and COLLECT_TIME_BUDGET_MIN (default 25m).
+    Runs OTA Playwright scrape once after the thread pool completes.
 
     Args:
         filter_route: Optional route_id (e.g. 'DEL-BOM') to test only a single route.
@@ -407,10 +465,10 @@ def run_collection_cycle(
     seasonal_routes = config.get("seasonal", [])
     ota_routes = config.get("ota_routes", [])
 
-    results_log: list[dict[str, Any]] = []
+    # Planned tasks: list of tuples: (origin, destination, travel_date, win, r_type)
+    planned_tasks: list[tuple[str, str, str, int, str]] = []
 
-    # Helper to process a route definition
-    def run_route(route_def: dict[str, Any], r_type: str) -> None:
+    def queue_route_tasks(route_def: dict[str, Any], r_type: str) -> None:
         rid = route_def.get("route_id", "")
         if filter_route and rid != filter_route:
             return
@@ -432,38 +490,113 @@ def run_collection_cycle(
                 return
             logger.info("Seasonal route %s is IN SEASON for %s (window: %s)", rid, today, s_win)
 
-        logger.info(
-            "Processing %s route: %s (%s -> %s) across windows %s",
-            r_type.upper(), rid, origin, destination, windows,
-        )
-
         for win in windows:
             t_date = (today + timedelta(days=win)).strftime("%Y-%m-%d")
-            res = process_route_window(
-                origin=origin,
-                destination=destination,
-                travel_date=t_date,
-                advance_days=win,
-                route_type=r_type,
-            )
-            results_log.append(res)
+            planned_tasks.append((origin, destination, t_date, win, r_type))
 
-    # Execute Domestic Routes
-    logger.info("--- Step 2: Processing Domestic Routes (%d configured) ---", len(domestic_routes))
+    # Queue Domestic Routes
+    logger.info("--- Step 2: Evaluating Domestic Routes (%d configured) ---", len(domestic_routes))
     for r in domestic_routes:
-        run_route(r, "domestic")
+        queue_route_tasks(r, "domestic")
 
-    # Execute International Routes
-    logger.info("--- Step 3: Processing International Routes (%d configured) ---", len(international_routes))
+    # Queue International Routes
+    logger.info("--- Step 3: Evaluating International Routes (%d configured) ---", len(international_routes))
     for r in international_routes:
-        run_route(r, "international")
+        queue_route_tasks(r, "international")
 
-    # Execute Seasonal Routes (conditional on season_window)
-    logger.info("--- Step 4: Processing Seasonal Routes (%d configured) ---", len(seasonal_routes))
+    # Queue Seasonal Routes (conditional on season_window)
+    logger.info("--- Step 4: Evaluating Seasonal Routes (%d configured) ---", len(seasonal_routes))
     for r in seasonal_routes:
-        run_route(r, "seasonal")
+        queue_route_tasks(r, "seasonal")
 
-    # Execute OTA Scrapes (1-2 routes per cycle)
+    # Execute tasks in parallel with ThreadPoolExecutor & Global Time Budget
+    max_workers = int(os.getenv("COLLECT_MAX_WORKERS", "5"))
+    time_budget_min = float(os.getenv("COLLECT_TIME_BUDGET_MIN", "25"))
+    time_budget_sec = time_budget_min * 60.0
+
+    logger.info(
+        "--- Executing %d Route-Window Collection Tasks (max_workers=%d, time_budget=%.1f min) ---",
+        len(planned_tasks), max_workers, time_budget_min,
+    )
+
+    results_log: list[dict[str, Any]] = []
+    skipped_budget_count = 0
+    start_mono = time.monotonic()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures_map: dict[concurrent.futures.Future, tuple[str, str, str, int, str]] = {}
+        task_iter = iter(planned_tasks)
+
+        # Initial submit up to max_workers
+        for task in task_iter:
+            elapsed = time.monotonic() - start_mono
+            if elapsed >= time_budget_sec:
+                logger.warning(
+                    "Global time budget reached (%.1fs >= %.1fs) before initial submission completed.",
+                    elapsed, time_budget_sec,
+                )
+                skipped_budget_count += 1
+                for _ in task_iter:
+                    skipped_budget_count += 1
+                break
+
+            fut = executor.submit(process_route_window, *task)
+            futures_map[fut] = task
+            if len(futures_map) >= max_workers:
+                break
+
+        # Process completion and submit next tasks incrementally
+        budget_exceeded = False
+        while futures_map:
+            done, _ = concurrent.futures.wait(
+                futures_map.keys(),
+                return_when=concurrent.futures.FIRST_COMPLETED,
+            )
+            for fut in done:
+                task = futures_map.pop(fut)
+                try:
+                    res = fut.result()
+                    results_log.append(res)
+                except Exception as e:
+                    rid = f"{task[0]}-{task[1]}"
+                    win = task[3]
+                    logger.error(
+                        "[%s | T+%d] Worker thread raised unexpected exception: %s",
+                        rid, win, e,
+                    )
+                    results_log.append({
+                        "route_id": rid,
+                        "route_type": task[4],
+                        "advance_days": win,
+                        "travel_date": task[2],
+                        "status": "FAILED",
+                        "observations_count": 0,
+                        "source_used": "none",
+                        "errors": [f"Worker exception: {e}"],
+                        "source_attempts": [],
+                    })
+
+                # Check budget and submit next task
+                if not budget_exceeded:
+                    elapsed = time.monotonic() - start_mono
+                    if elapsed >= time_budget_sec:
+                        budget_exceeded = True
+                        logger.warning(
+                            "Global time budget reached (%.1fs >= %.1fs). "
+                            "No new tasks will be submitted; letting in-flight tasks finish.",
+                            elapsed, time_budget_sec,
+                        )
+                        for _ in task_iter:
+                            skipped_budget_count += 1
+                    else:
+                        try:
+                            next_task = next(task_iter)
+                            next_fut = executor.submit(process_route_window, *next_task)
+                            futures_map[next_fut] = next_task
+                        except StopIteration:
+                            pass
+
+    # Step 5: Execute OTA Scrapes (runs once after thread pool finishes)
     if not skip_ota:
         logger.info("--- Step 5: Processing OTA Direct Scrapes (%d configured) ---", len(ota_routes))
         for o_def in ota_routes:
@@ -506,6 +639,26 @@ def run_collection_cycle(
     failed_queries = total_queries - success_queries
     total_observations = sum(r["observations_count"] for r in results_log)
 
+    # Per-source metrics
+    source_stats: dict[str, dict[str, Any]] = {
+        "bright_data": {"attempts": 0, "successes": 0, "failures": 0, "latencies": []},
+        "scrappa": {"attempts": 0, "successes": 0, "failures": 0, "latencies": []},
+        "ota_playwright": {"attempts": 0, "successes": 0, "failures": 0, "latencies": []},
+    }
+
+    for r in results_log:
+        for sa in r.get("source_attempts", []):
+            s_name = sa.get("source")
+            if s_name in source_stats:
+                source_stats[s_name]["attempts"] += 1
+                if sa.get("success"):
+                    source_stats[s_name]["successes"] += 1
+                else:
+                    source_stats[s_name]["failures"] += 1
+                lat = sa.get("latency")
+                if lat is not None and isinstance(lat, (int, float)):
+                    source_stats[s_name]["latencies"].append(float(lat))
+
     # Group metrics by route
     by_route: dict[str, dict[str, Any]] = {}
     for r in results_log:
@@ -531,13 +684,37 @@ def run_collection_cycle(
     logger.info("=" * 80)
     logger.info("FLYWISE COLLECTION & INGESTION CYCLE SUMMARY REPORT")
     logger.info("=" * 80)
-    logger.info("Start Time: %s UTC | End Time: %s UTC (Duration: %.1fs)",
-                cycle_start.strftime("%Y-%m-%d %H:%M:%S"),
-                cycle_end.strftime("%Y-%m-%d %H:%M:%S"),
-                duration_secs)
-    logger.info("Total Queries Attempted: %d | Succeeded: %d | Failed: %d",
-                total_queries, success_queries, failed_queries)
+    logger.info(
+        "Start Time: %s UTC | End Time: %s UTC",
+        cycle_start.strftime("%Y-%m-%d %H:%M:%S"),
+        cycle_end.strftime("%Y-%m-%d %H:%M:%S"),
+    )
+    logger.info(
+        "Total Duration: %.1fs (%.2f min) | Time Budget: %.1f min | Max Workers: %d",
+        duration_secs, duration_secs / 60.0, time_budget_min, max_workers,
+    )
+    logger.info(
+        "Tasks Attempted: %d | Succeeded: %d | Failed: %d | Skipped (Budget): %d",
+        total_queries, success_queries, failed_queries, skipped_budget_count,
+    )
     logger.info("Total Flight Observations Collected: %d", total_observations)
+
+    logger.info("-" * 80)
+    logger.info("PER-SOURCE PERFORMANCE & LATENCY:")
+    logger.info(
+        "%-16s | %-8s | %-8s | %-8s | %-12s | %s",
+        "Source", "Attempts", "Success", "Failed", "Avg Latency", "Max Latency",
+    )
+    logger.info("-" * 80)
+    for src_name, sstats in source_stats.items():
+        if sstats["attempts"] > 0:
+            avg_l = f"{sum(sstats['latencies']) / len(sstats['latencies']):.2f}s" if sstats["latencies"] else "0.00s"
+            max_l = f"{max(sstats['latencies']):.2f}s" if sstats["latencies"] else "0.00s"
+            logger.info(
+                "%-16s | %-8d | %-8d | %-8d | %-12s | %s",
+                src_name, sstats["attempts"], sstats["successes"], sstats["failures"],
+                avg_l, max_l,
+            )
 
     if ingest_result:
         logger.info("-" * 80)
@@ -571,6 +748,12 @@ def run_collection_cycle(
             if r["status"] == "FAILED":
                 logger.warning("  [-] %s (T+%d): %s", r["route_id"], r["advance_days"], "; ".join(r["errors"]))
 
+    if skipped_budget_count > 0:
+        logger.warning(
+            "Notice: %d tasks were skipped because the global time budget (%.1f min) was reached.",
+            skipped_budget_count, time_budget_min,
+        )
+
     return {
         "cycle_start": cycle_start.isoformat(),
         "cycle_end": cycle_end.isoformat(),
@@ -578,7 +761,18 @@ def run_collection_cycle(
         "total_queries": total_queries,
         "success_queries": success_queries,
         "failed_queries": failed_queries,
+        "skipped_budget_count": skipped_budget_count,
         "total_observations": total_observations,
+        "by_source": {
+            k: {
+                "attempts": v["attempts"],
+                "successes": v["successes"],
+                "failures": v["failures"],
+                "avg_latency": round(sum(v["latencies"]) / len(v["latencies"]), 2) if v["latencies"] else 0.0,
+                "max_latency": round(max(v["latencies"]), 2) if v["latencies"] else 0.0,
+            }
+            for k, v in source_stats.items()
+        },
         "by_route": {k: {**v, "sources": list(v["sources"])} for k, v in by_route.items()},
         "ingestion": ingest_result,
     }
